@@ -38,10 +38,14 @@ class DriveMateSessionService : Service() {
             val intent = Intent(context, DriveMateSessionService::class.java).apply {
                 action = ACTION_START
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+            } catch (e: Exception) {
+                AppLogger.w(AppLogger.Tag.SESSION, "Unable to start DriveMateSessionService (background restriction): ${e.message}")
             }
         }
 
@@ -49,7 +53,11 @@ class DriveMateSessionService : Service() {
             val intent = Intent(context, DriveMateSessionService::class.java).apply {
                 action = ACTION_STOP
             }
-            context.startService(intent)
+            try {
+                context.startService(intent)
+            } catch (e: Exception) {
+                AppLogger.w(AppLogger.Tag.SESSION, "Unable to stop DriveMateSessionService: ${e.message}")
+            }
         }
     }
 
@@ -70,7 +78,13 @@ class DriveMateSessionService : Service() {
             return START_NOT_STICKY
         }
 
-        startForeground(NOTIFICATION_ID, buildNotification("Monitoring vehicle connection..."))
+        try {
+            startForeground(NOTIFICATION_ID, buildNotification("Monitoring vehicle connection..."))
+        } catch (e: Exception) {
+            AppLogger.e(AppLogger.Tag.SESSION, "Failed to call startForeground: ${e.message}", e)
+            stopSelf()
+            return START_NOT_STICKY
+        }
 
         val app = application as? DriveMateApplication
         if (app != null) {

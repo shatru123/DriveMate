@@ -34,19 +34,22 @@ Designed with an automotive-inspired Material 3 interface, clean architecture, a
      - **Detailed**: Comprehensive variant greeting (*"Good evening, Shatrughna. Welcome back to your Tata Nexon Creative+ S. Your journey is ready. Have a safe and pleasant drive."*).
      - **Custom**: User-defined templates with dynamic placeholder support (`{name}`, `{brand}`, `{model}`, `{variant}`, `{timeOfDay}`).
 
-2. **Official Android Auto & Car Connection Awareness**
-   - Integrates with the official `androidx.car.app.connection.CarConnection` API to detect wired and wireless Android Auto projection (`CONNECTION_TYPE_PROJECTION`) and Automotive OS (`CONNECTION_TYPE_NATIVE`).
-   - Secondary vehicle Bluetooth (`ACTION_ACL_CONNECTED`) detection for standard infotainment pairing.
+2. **Verified Android Auto & Car Connection Awareness**
+   - Integrates with the official `androidx.car.app.connection.CarConnection` API to detect verified Android Auto projection (`CONNECTION_TYPE_PROJECTION`) and Automotive OS (`CONNECTION_TYPE_NATIVE`).
+   - Explicitly distinguishes genuine Android Auto projection sessions from Bluetooth-only pairings (`BLUETOOTH_ONLY`). Car Bluetooth alone never triggers an automatic driving welcome greeting.
    - Built-in **Simulated Connection** toggle for instant testing without needing physical vehicle access.
 
-3. **Intelligent Session Management & Deduplication**
-   - `DrivingSessionManager` state machine strictly prevents duplicate greetings during a drive.
+3. **Intelligent Session Management & Guaranteed Deduplication**
+   - `DrivingSessionManager` state machine generates cryptographically unique `sessionId` values per drive and strictly prevents duplicate greetings during a drive.
    - Idempotent against screen rotations, configuration changes, activity restarts, and duplicate connection callbacks.
-   - Automatic reset upon genuine vehicle disconnection, primed for the next trip.
+   - **Greeting marked played only upon verified TTS playback completion**: If audio focus is denied, or TTS encounters an error mid-speech, the greeting is NOT falsely recorded as played and retries safely.
+   - Automatic session cancellation and resource cleanup upon genuine vehicle disconnection.
 
-4. **Automotive Audio Engine (Text-to-Speech & Ducking)**
-   - Coroutine-driven `GreetingTtsManager` manages Android Text-to-Speech lifecycle.
-   - Audio Focus integration (`USAGE_ASSISTANCE_NAVIGATION_GUIDANCE` with `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK`): ducking any active music/radio smoothly, delivering the greeting, and releasing audio focus cleanly.
+4. **Automotive Audio Engine (Per-Utterance Tracking & Audio Ducking)**
+   - Coroutine-driven `GreetingTtsManager` with thread-safe `ConcurrentHashMap` per-utterance tracking (`utteranceId`).
+   - Ignores stale or cancelled utterance callbacks.
+   - Strict audio focus validation (`AUDIOFOCUS_REQUEST_GRANTED` with `USAGE_ASSISTANCE_NAVIGATION_GUIDANCE` and `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK`): ducking active music/radio smoothly, delivering the greeting, and releasing audio focus cleanly.
+   - 15-second utterance timeout guards against hung system TTS engines.
    - Configurable speech rate (0.5x - 2.0x), voice pitch (0.5x - 2.0x), and voice/language selection.
    - Instant phone-side audio preview with animated visualizer and stop controls.
 
@@ -222,6 +225,20 @@ The test suite validates greeting generation, session deduplication, and state m
   * Validates Short, Normal, and Detailed styles.
   * Validates Custom templates and dynamic placeholder replacements (`{name}`, `{brand}`, `{model}`, `{variant}`, `{timeOfDay}`).
   * Validates template syntax error handling and unknown token detection.
+* **`AndroidAutoReliabilityTest`** (13 Comprehensive Reliability Scenarios):
+  * **Scenario 1**: Bluetooth-only connection updates state but does NOT trigger driving sessions or speech.
+  * **Scenario 2**: Android Auto projection connecting while Bluetooth is paired triggers session and welcome greeting.
+  * **Scenario 3**: Rapid duplicate connection events are strictly deduplicated (plays exactly once).
+  * **Scenario 4**: Vehicle disconnect during greeting preparation cancels the greeting cleanly.
+  * **Scenario 5**: Vehicle disconnect mid-speech immediately stops TTS and does NOT mark the greeting played.
+  * **Scenario 6**: TTS initialization failures trigger bounded retries (max 2 retries) and do NOT mark played.
+  * **Scenario 7**: TTS playback errors (onError) do NOT mark greeting played.
+  * **Scenario 8**: TTS playback completion (onDone) marks greeting played for the current session ID.
+  * **Scenario 9**: Audio focus denial aborts speech and does NOT mark played.
+  * **Scenario 10**: Stale utterance or session IDs cannot mark active greetings played.
+  * **Scenario 11**: Rapid disconnect-reconnect generates distinct session IDs and triggers fresh greetings.
+  * **Scenario 12**: Weather API timeouts (>2s) or network errors fallback to basic greetings without blocking speech.
+  * **Scenario 13**: Single greeting per driving session guaranteed across lifecycle re-evaluations.
 * **`DrivingSessionManagerTest`**:
   * Validates connection lifecycle: `CONNECT -> Greeting Triggered`.
   * Validates deduplication: Subsequent `CONNECT` events (activity recreate, rotation, duplicate callbacks) **never** replay greetings.
@@ -229,6 +246,8 @@ The test suite validates greeting generation, session deduplication, and state m
   * Validates reconnection: Subsequent `CONNECT` triggers greeting for the new drive.
 * **`CarConnectionStateTest`**:
   * Validates connection type models, settings defaults, and enum parsing.
+* **`WeatherRepositoryTest` & `TripTrackerTest`**:
+  * Validates Open-Meteo response parsing, WMO weather codes, and trip tracker accumulators.
 
 ### 2. Manual & Desktop Head Unit (DHU) Testing
 * **In-App Simulator**: Use the **"Simulate Car Connection"** switch on the dashboard to test the complete connection -> greeting -> deduplication cycle on an emulator or phone without physical car hardware.

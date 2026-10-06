@@ -27,16 +27,18 @@ class CarConnectionStateTest {
             deviceOrVehicleName = "Tata Nexon"
         )
         assertTrue(connectedAuto.isConnected)
+        assertTrue(connectedAuto.isVerifiedCarSession)
         assertEquals(CarConnectionType.ANDROID_AUTO_PROJECTION, connectedAuto.connectionType)
-        assertEquals("Connected via Android Auto", connectedAuto.statusDescription)
+        assertEquals("Connected via Android Auto Projection", connectedAuto.statusDescription)
 
         val connectedBt = CarConnectionState.Connected(
-            connectionType = CarConnectionType.BLUETOOTH_CAR_UNIT,
+            connectionType = CarConnectionType.BLUETOOTH_ONLY,
             deviceOrVehicleName = "Tata Nexon BT"
         )
         assertTrue(connectedBt.isConnected)
-        assertEquals(CarConnectionType.BLUETOOTH_CAR_UNIT, connectedBt.connectionType)
-        assertEquals("Connected via Car Bluetooth", connectedBt.statusDescription)
+        assertFalse(connectedBt.isVerifiedCarSession)
+        assertEquals(CarConnectionType.BLUETOOTH_ONLY, connectedBt.connectionType)
+        assertEquals("Connected via Bluetooth (Tata Nexon BT)", connectedBt.statusDescription)
     }
 
     @Test

@@ -59,6 +59,18 @@ class OpenMeteoWeatherRepository : WeatherRepository {
             return@withContext cached
         }
 
+        if (cityName.isBlank()) {
+            AppLogger.d(AppLogger.Tag.APP, "City name is blank, skipping network weather fetch")
+            return@withContext cached ?: WeatherInfo(
+                temperatureCelsius = 24.0f,
+                weatherCode = 0,
+                conditionText = "Clear",
+                cityName = "Local",
+                isFetchedFromNetwork = false,
+                timestampMillis = now
+            )
+        }
+
         try {
             val endpoint = "https://api.open-meteo.com/v1/forecast?latitude=$latitude&longitude=$longitude&current=temperature_2m,weather_code"
             AppLogger.i(AppLogger.Tag.APP, "Fetching live weather from Open-Meteo: $endpoint")
@@ -66,8 +78,8 @@ class OpenMeteoWeatherRepository : WeatherRepository {
             val url = URL(endpoint)
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
-                connectTimeout = 4000
-                readTimeout = 4000
+                connectTimeout = 2000
+                readTimeout = 2000
                 setRequestProperty("User-Agent", "DriveMate-Android/2.0")
             }
 

@@ -3,9 +3,9 @@ package com.shatrughna.drivemate
 import com.shatrughna.drivemate.car.CarConnectionManager
 import com.shatrughna.drivemate.car.CarConnectionState
 import com.shatrughna.drivemate.car.CarConnectionType
+import com.shatrughna.drivemate.driving.DrivingSession
 import com.shatrughna.drivemate.driving.DrivingSessionManagerImpl
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,6 +16,8 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -48,8 +50,31 @@ class DrivingSessionManagerTest {
     }
 
     @Test
+    fun testBluetoothOnlyDoesNotStartSession() = runTest(testDispatcher) {
+        val receivedGreetingEvents = mutableListOf<DrivingSession>()
+        val collectorJob = launch {
+            sessionManager.greetingTriggerEvents.toList(receivedGreetingEvents)
+        }
+
+        // Bluetooth-only pairing (no Android Auto projection)
+        val btState = CarConnectionState.Connected(
+            connectionType = CarConnectionType.BLUETOOTH_ONLY,
+            deviceOrVehicleName = "Tata Nexon BT Audio"
+        )
+        sessionManager.onConnectionStateChanged(btState)
+        advanceUntilIdle()
+
+        assertFalse(sessionManager.isSessionActive.value)
+        assertNull(sessionManager.currentSessionId.value)
+        assertFalse(sessionManager.hasGreetingPlayed.value)
+        assertEquals(0, receivedGreetingEvents.size)
+
+        collectorJob.cancel()
+    }
+
+    @Test
     fun testConnectionLifecycleAndDeduplication() = runTest(testDispatcher) {
-        val receivedGreetingEvents = mutableListOf<CarConnectionState.Connected>()
+        val receivedGreetingEvents = mutableListOf<DrivingSession>()
         val collectorJob = launch {
             sessionManager.greetingTriggerEvents.toList(receivedGreetingEvents)
         }
@@ -58,10 +83,11 @@ class DrivingSessionManagerTest {
         sessionManager.onConnectionStateChanged(CarConnectionState.Disconnected())
         advanceUntilIdle()
         assertFalse(sessionManager.isSessionActive.value)
+        assertNull(sessionManager.currentSessionId.value)
         assertFalse(sessionManager.hasGreetingPlayed.value)
         assertEquals(0, receivedGreetingEvents.size)
 
-        // 2. Event: CONNECT
+        // 2. Event: CONNECT via Android Auto Projection
         val connectedState1 = CarConnectionState.Connected(
             connectionType = CarConnectionType.ANDROID_AUTO_PROJECTION,
             deviceOrVehicleName = "Tata Nexon Infotainment",
@@ -71,12 +97,20 @@ class DrivingSessionManagerTest {
         advanceUntilIdle()
 
         assertTrue(sessionManager.isSessionActive.value)
+        val firstSessionId = sessionManager.currentSessionId.value
+        assertNotNull(firstSessionId)
         assertEquals(1, receivedGreetingEvents.size)
-        assertEquals("Tata Nexon Infotainment", receivedGreetingEvents.first().deviceOrVehicleName)
+        assertEquals("Tata Nexon Infotainment", receivedGreetingEvents.first().connectionState.deviceOrVehicleName)
+        assertEquals(firstSessionId, receivedGreetingEvents.first().sessionId)
 
-        // Simulate greeting playback completing
-        sessionManager.markGreetingPlayed()
+        // Simulate greeting playback completing successfully with valid session ID
+        val marked = sessionManager.markGreetingPlayed(firstSessionId!!)
+        assertTrue(marked)
         assertTrue(sessionManager.hasGreetingPlayed.value)
+
+        // Stale session ID cannot mark greeting
+        val staleMark = sessionManager.markGreetingPlayed("invalid-session-id")
+        assertFalse(staleMark)
 
         // 3. Event: Duplicate CONNECT (e.g. repeated callback, activity recreated)
         val duplicateConnectedState = CarConnectionState.Connected(
@@ -91,20 +125,17 @@ class DrivingSessionManagerTest {
         assertEquals(1, receivedGreetingEvents.size)
         assertTrue(sessionManager.isSessionActive.value)
         assertTrue(sessionManager.hasGreetingPlayed.value)
+        assertEquals(firstSessionId, sessionManager.currentSessionId.value)
 
-        // 4. Event: Another duplicate CONNECT
-        sessionManager.onConnectionStateChanged(duplicateConnectedState)
-        advanceUntilIdle()
-        assertEquals(1, receivedGreetingEvents.size)
-
-        // 5. Event: DISCONNECT (Real car unplug/stop)
+        // 4. Event: DISCONNECT (Real car unplug/stop)
         sessionManager.onConnectionStateChanged(CarConnectionState.Disconnected(timestampMillis = 2000L))
         advanceUntilIdle()
 
         assertFalse(sessionManager.isSessionActive.value)
+        assertNull(sessionManager.currentSessionId.value)
         assertFalse(sessionManager.hasGreetingPlayed.value)
 
-        // 6. Event: RECONNECT (New drive begins)
+        // 5. Event: RECONNECT (New drive begins)
         val newConnectedState = CarConnectionState.Connected(
             connectionType = CarConnectionType.ANDROID_AUTO_PROJECTION,
             deviceOrVehicleName = "Tata Nexon Infotainment",
@@ -113,9 +144,13 @@ class DrivingSessionManagerTest {
         sessionManager.onConnectionStateChanged(newConnectedState)
         advanceUntilIdle()
 
-        // Greeting MUST trigger again for the new drive
+        // Greeting MUST trigger again for the new drive with new session ID
         assertTrue(sessionManager.isSessionActive.value)
+        val secondSessionId = sessionManager.currentSessionId.value
+        assertNotNull(secondSessionId)
+        assertTrue(firstSessionId != secondSessionId)
         assertEquals(2, receivedGreetingEvents.size)
+        assertEquals(secondSessionId, receivedGreetingEvents[1].sessionId)
 
         collectorJob.cancel()
     }

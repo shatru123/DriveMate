@@ -10,10 +10,12 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
 import com.shatrughna.drivemate.util.AppLogger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,6 +23,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.util.Locale
 import java.util.UUID
 
@@ -64,8 +67,8 @@ class GreetingTtsManagerImpl(
     private val _isSpeaking = MutableStateFlow(false)
     override val isSpeaking: StateFlow<Boolean> = _isSpeaking.asStateFlow()
 
-    // Track active speaking completion
-    private var currentUtteranceDeferred: CompletableDeferred<Result<Unit>>? = null
+    // Track active speaking completion per utterance ID
+    private val pendingUtterances = java.util.concurrent.ConcurrentHashMap<String, CompletableDeferred<Result<Unit>>>()
 
     private var speechRate: Float = 1.0f
     private var speechPitch: Float = 1.0f
@@ -75,14 +78,21 @@ class GreetingTtsManagerImpl(
     private val utteranceProgressListener = object : UtteranceProgressListener() {
         override fun onStart(utteranceId: String?) {
             AppLogger.d(AppLogger.Tag.TTS, "Speech playback started for utteranceId: $utteranceId")
-            _isSpeaking.value = true
+            if (utteranceId != null && pendingUtterances.containsKey(utteranceId)) {
+                _isSpeaking.value = true
+            }
         }
 
         override fun onDone(utteranceId: String?) {
             AppLogger.d(AppLogger.Tag.TTS, "Speech playback completed for utteranceId: $utteranceId")
-            _isSpeaking.value = false
-            releaseAudioFocus()
-            currentUtteranceDeferred?.complete(Result.success(Unit))
+            val def = if (utteranceId != null) pendingUtterances.remove(utteranceId) else null
+            if (def != null) {
+                _isSpeaking.value = false
+                releaseAudioFocus()
+                def.complete(Result.success(Unit))
+            } else {
+                AppLogger.d(AppLogger.Tag.TTS, "Ignored onDone for unmanaged or stale utteranceId: $utteranceId")
+            }
         }
 
         @Deprecated("Deprecated in Java")
@@ -92,11 +102,16 @@ class GreetingTtsManagerImpl(
 
         override fun onError(utteranceId: String?, errorCode: Int) {
             AppLogger.e(AppLogger.Tag.TTS, "TTS utterance error: $errorCode for utteranceId: $utteranceId")
-            _isSpeaking.value = false
-            releaseAudioFocus()
-            currentUtteranceDeferred?.complete(
-                Result.failure(IllegalStateException("TTS playback failed with error code: $errorCode"))
-            )
+            val def = if (utteranceId != null) pendingUtterances.remove(utteranceId) else null
+            if (def != null) {
+                _isSpeaking.value = false
+                releaseAudioFocus()
+                def.complete(
+                    Result.failure(IllegalStateException("TTS playback failed with error code: $errorCode"))
+                )
+            } else {
+                AppLogger.d(AppLogger.Tag.TTS, "Ignored onError for unmanaged or stale utteranceId: $utteranceId")
+            }
         }
     }
 
@@ -222,10 +237,15 @@ class GreetingTtsManagerImpl(
 
         val utteranceId = "drivemate_greeting_${UUID.randomUUID()}"
         val deferred = CompletableDeferred<Result<Unit>>()
-        currentUtteranceDeferred = deferred
+        pendingUtterances[utteranceId] = deferred
 
         // Request audio focus so media ducks in car
-        requestAudioFocus()
+        val focusGranted = requestAudioFocus()
+        if (!focusGranted) {
+            pendingUtterances.remove(utteranceId)
+            AppLogger.w(AppLogger.Tag.TTS, "Audio focus was not granted. Aborting greeting playback.")
+            return Result.failure(IllegalStateException("Audio focus request denied"))
+        }
 
         val params = Bundle().apply {
             putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC)
@@ -234,13 +254,28 @@ class GreetingTtsManagerImpl(
 
         val queueResult = engine.speak(text, TextToSpeech.QUEUE_FLUSH, params, utteranceId)
         if (queueResult != TextToSpeech.SUCCESS) {
+            pendingUtterances.remove(utteranceId)
             releaseAudioFocus()
             _isSpeaking.value = false
             AppLogger.e(AppLogger.Tag.TTS, "Failed to queue TTS utterance: $queueResult")
             return Result.failure(IllegalStateException("Failed to queue TTS speech: $queueResult"))
         }
 
-        return deferred.await()
+        return try {
+            withTimeout(15000L) {
+                deferred.await()
+            }
+        } catch (e: TimeoutCancellationException) {
+            AppLogger.e(AppLogger.Tag.TTS, "TTS utterance $utteranceId timed out after 15s")
+            stop()
+            Result.failure(e)
+        } catch (e: CancellationException) {
+            AppLogger.w(AppLogger.Tag.TTS, "TTS utterance $utteranceId was cancelled")
+            stop()
+            throw e
+        } finally {
+            pendingUtterances.remove(utteranceId)
+        }
     }
 
     override fun stop() {
@@ -251,8 +286,11 @@ class GreetingTtsManagerImpl(
         }
         _isSpeaking.value = false
         releaseAudioFocus()
-        currentUtteranceDeferred?.complete(Result.success(Unit))
-        currentUtteranceDeferred = null
+        val remaining = pendingUtterances.values.toList()
+        pendingUtterances.clear()
+        remaining.forEach {
+            it.complete(Result.failure(CancellationException("Playback stopped")))
+        }
     }
 
     override fun shutdown() {
@@ -266,9 +304,9 @@ class GreetingTtsManagerImpl(
         _isInitialized.value = false
     }
 
-    private fun requestAudioFocus() {
-        val am = audioManager ?: return
-        try {
+    private fun requestAudioFocus(): Boolean {
+        val am = audioManager ?: return true
+        return try {
             val audioAttributes = AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
@@ -287,8 +325,10 @@ class GreetingTtsManagerImpl(
             audioFocusRequest = focusRequest
             val result = am.requestAudioFocus(focusRequest)
             AppLogger.d(AppLogger.Tag.TTS, "Audio focus request result: $result")
+            result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
         } catch (e: Exception) {
             AppLogger.w(AppLogger.Tag.TTS, "Failed to request audio focus", e)
+            false
         }
     }
 

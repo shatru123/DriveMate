@@ -16,18 +16,28 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.UUID
+
+/**
+ * Data class representing a verified driving session.
+ */
+data class DrivingSession(
+    val sessionId: String,
+    val connectionState: CarConnectionState.Connected
+)
 
 /**
  * Manages driving session lifecycles and guarantees greeting deduplication.
  */
 interface DrivingSessionManager {
     val isSessionActive: StateFlow<Boolean>
+    val currentSessionId: StateFlow<String?>
     val hasGreetingPlayed: StateFlow<Boolean>
     val sessionStartTime: StateFlow<Long?>
-    val greetingTriggerEvents: SharedFlow<CarConnectionState.Connected>
+    val greetingTriggerEvents: SharedFlow<DrivingSession>
 
     fun startSessionMonitoring()
-    fun markGreetingPlayed()
+    fun markGreetingPlayed(sessionId: String): Boolean
     fun resetSession()
     suspend fun onConnectionStateChanged(state: CarConnectionState)
 }
@@ -42,14 +52,17 @@ class DrivingSessionManagerImpl(
     private val _isSessionActive = MutableStateFlow(false)
     override val isSessionActive: StateFlow<Boolean> = _isSessionActive.asStateFlow()
 
+    private val _currentSessionId = MutableStateFlow<String?>(null)
+    override val currentSessionId: StateFlow<String?> = _currentSessionId.asStateFlow()
+
     private val _hasGreetingPlayed = MutableStateFlow(false)
     override val hasGreetingPlayed: StateFlow<Boolean> = _hasGreetingPlayed.asStateFlow()
 
     private val _sessionStartTime = MutableStateFlow<Long?>(null)
     override val sessionStartTime: StateFlow<Long?> = _sessionStartTime.asStateFlow()
 
-    private val _greetingTriggerEvents = MutableSharedFlow<CarConnectionState.Connected>(replay = 0)
-    override val greetingTriggerEvents: SharedFlow<CarConnectionState.Connected> = _greetingTriggerEvents.asSharedFlow()
+    private val _greetingTriggerEvents = MutableSharedFlow<DrivingSession>(replay = 0)
+    override val greetingTriggerEvents: SharedFlow<DrivingSession> = _greetingTriggerEvents.asSharedFlow()
 
     private var previousConnectionState: CarConnectionState = CarConnectionState.Unknown
     private var isMonitoring = false
@@ -73,30 +86,38 @@ class DrivingSessionManagerImpl(
 
         when (state) {
             is CarConnectionState.Connected -> {
-                if (!_isSessionActive.value) {
-                    // Brand new connection session
-                    AppLogger.i(AppLogger.Tag.SESSION, "Starting new driving session for: ${state.deviceOrVehicleName}")
+                if (!state.isVerifiedCarSession) {
+                    AppLogger.d(
+                        AppLogger.Tag.SESSION,
+                        "Connection is not a verified car session (${state.connectionType.displayName}). Ignoring for driving session trigger."
+                    )
+                    if (_isSessionActive.value) {
+                        endSessionInternal("Connection transitioned away from verified car session")
+                    }
+                } else if (!_isSessionActive.value) {
+                    val newSessionId = UUID.randomUUID().toString()
+                    AppLogger.i(
+                        AppLogger.Tag.SESSION,
+                        "Starting new driving session [$newSessionId] for: ${state.deviceOrVehicleName}"
+                    )
+                    _currentSessionId.value = newSessionId
                     _isSessionActive.value = true
                     _sessionStartTime.value = state.timestampMillis
                     _hasGreetingPlayed.value = false
 
-                    // Emit greeting event
-                    _greetingTriggerEvents.emit(state)
+                    // Emit greeting event for this specific session
+                    _greetingTriggerEvents.emit(DrivingSession(newSessionId, state))
                 } else {
-                    // Already in active session: ignore duplicate connection callbacks or configuration changes
                     AppLogger.d(
                         AppLogger.Tag.SESSION,
-                        "Already in active session. Greeting already played: ${_hasGreetingPlayed.value}. Suppressing duplicate announcement."
+                        "Already in active session [${_currentSessionId.value}]. Greeting already played: ${_hasGreetingPlayed.value}. Suppressing duplicate announcement."
                     )
                 }
             }
 
             is CarConnectionState.Disconnected -> {
                 if (_isSessionActive.value) {
-                    AppLogger.i(AppLogger.Tag.SESSION, "Ending driving session due to car disconnection.")
-                    _isSessionActive.value = false
-                    _hasGreetingPlayed.value = false
-                    _sessionStartTime.value = null
+                    endSessionInternal("Car disconnected")
                 }
             }
 
@@ -108,14 +129,32 @@ class DrivingSessionManagerImpl(
         previousConnectionState = state
     }
 
-    override fun markGreetingPlayed() {
-        AppLogger.i(AppLogger.Tag.SESSION, "Marked greeting as played for current session.")
-        _hasGreetingPlayed.value = true
+    private fun endSessionInternal(reason: String) {
+        AppLogger.i(AppLogger.Tag.SESSION, "Ending driving session [${_currentSessionId.value}]: $reason")
+        _isSessionActive.value = false
+        _currentSessionId.value = null
+        _hasGreetingPlayed.value = false
+        _sessionStartTime.value = null
+    }
+
+    override fun markGreetingPlayed(sessionId: String): Boolean {
+        if (_isSessionActive.value && _currentSessionId.value == sessionId) {
+            AppLogger.i(AppLogger.Tag.SESSION, "Marked greeting as played for session: $sessionId")
+            _hasGreetingPlayed.value = true
+            return true
+        } else {
+            AppLogger.w(
+                AppLogger.Tag.SESSION,
+                "Cannot mark greeting played: sessionId mismatch or inactive session (current=${_currentSessionId.value}, provided=$sessionId)"
+            )
+            return false
+        }
     }
 
     override fun resetSession() {
         AppLogger.i(AppLogger.Tag.SESSION, "Manual session reset requested.")
         _isSessionActive.value = false
+        _currentSessionId.value = null
         _hasGreetingPlayed.value = false
         _sessionStartTime.value = null
     }
