@@ -114,6 +114,12 @@ class SettingsViewModel(
         }
     }
 
+    fun updateAutoDetectLocation(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.updateAutoDetectLocation(enabled)
+        }
+    }
+
     fun updateVehicleCare(odometerKm: Int, nextServiceKm: Int, fuelReminder: Boolean) {
         viewModelScope.launch {
             preferencesRepository.updateVehicleCare(odometerKm, nextServiceKm, fuelReminder)

@@ -19,6 +19,7 @@ data class DriveMateSettings(
     val targetBluetoothName: String = "Tata Nexon",
     // V2 Features
     val includeWeatherInGreeting: Boolean = true,
+    val autoDetectLocation: Boolean = true,
     val weatherCityName: String = "Pune",
     val weatherLatitude: Double = 18.5204,
     val weatherLongitude: Double = 73.8567,

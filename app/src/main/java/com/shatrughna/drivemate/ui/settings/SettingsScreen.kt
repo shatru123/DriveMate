@@ -256,6 +256,36 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(14.dp))
 
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Auto-Detect Current Location",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Uses GPS/Network to fetch weather wherever you drive",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                        }
+                        Switch(
+                            checked = settings.autoDetectLocation,
+                            onCheckedChange = viewModel::updateAutoDetectLocation,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = NexonCyanPrimary,
+                                checkedTrackColor = NexonCyanPrimary.copy(alpha = 0.3f)
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
                     OutlinedTextField(
                         value = weatherCityInput,
                         onValueChange = {
@@ -267,7 +297,10 @@ fun SettingsScreen(
                                 lon = settings.weatherLongitude
                             )
                         },
-                        label = { Text("City Name (e.g. Pune)") },
+                        label = { Text(if (settings.autoDetectLocation) "Fallback City Name (e.g. Pune)" else "City Name (e.g. Pune)") },
+                        supportingText = {
+                            Text(if (settings.autoDetectLocation) "Used if location is unavailable or denied" else "Fixed custom city")
+                        },
                         singleLine = true,
                         colors = outlinedTextFieldColors(),
                         modifier = Modifier.fillMaxWidth()

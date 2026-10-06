@@ -14,6 +14,8 @@ import com.shatrughna.drivemate.greeting.GreetingControllerImpl
 import com.shatrughna.drivemate.greeting.GreetingGeneratorImpl
 import com.shatrughna.drivemate.greeting.GreetingTtsManager
 import com.shatrughna.drivemate.greeting.VoiceInfo
+import com.shatrughna.drivemate.location.DeviceLocation
+import com.shatrughna.drivemate.location.DeviceLocationProvider
 import com.shatrughna.drivemate.weather.WeatherRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -165,10 +167,19 @@ class AndroidAutoReliabilityTest {
         override suspend fun updateAutoMonitorBluetooth(enabled: Boolean) {}
         override suspend fun updateTargetBluetoothName(name: String) {}
         override suspend fun updateWeatherSettings(includeInGreeting: Boolean, cityName: String, lat: Double, lon: Double) {}
+        override suspend fun updateAutoDetectLocation(enabled: Boolean) {}
         override suspend fun updateVehicleCare(odometerKm: Int, nextServiceKm: Int, fuelReminder: Boolean) {}
         override suspend fun updateFavoriteAddresses(home: String, office: String) {}
         override suspend fun recordCompletedTrip(distanceKm: Float, durationMinutes: Long) {}
         override suspend fun resetToDefaults() {}
+    }
+
+    private class FakeDeviceLocationProvider : DeviceLocationProvider {
+        var hasPermission = true
+        var mockLocation: DeviceLocation? = null
+
+        override fun hasLocationPermission(): Boolean = hasPermission
+        override suspend fun getCurrentLocation(): DeviceLocation? = mockLocation
     }
 
     // --- Test Fixtures ---
@@ -178,6 +189,7 @@ class AndroidAutoReliabilityTest {
     private lateinit var fakeTtsManager: FakeGreetingTtsManager
     private lateinit var fakeWeatherRepository: FakeWeatherRepository
     private lateinit var fakePreferencesRepository: FakePreferencesRepository
+    private lateinit var fakeLocationProvider: FakeDeviceLocationProvider
     private lateinit var sessionManager: DrivingSessionManagerImpl
     private lateinit var greetingController: GreetingControllerImpl
 
@@ -187,6 +199,7 @@ class AndroidAutoReliabilityTest {
         fakeTtsManager = FakeGreetingTtsManager()
         fakeWeatherRepository = FakeWeatherRepository()
         fakePreferencesRepository = FakePreferencesRepository()
+        fakeLocationProvider = FakeDeviceLocationProvider()
 
         sessionManager = DrivingSessionManagerImpl(
             carConnectionManager = fakeCarConnectionManager,
@@ -200,6 +213,7 @@ class AndroidAutoReliabilityTest {
             ttsManager = fakeTtsManager,
             weatherRepository = fakeWeatherRepository,
             vehicleCareManager = VehicleCareManagerImpl(),
+            locationProvider = fakeLocationProvider,
             scope = CoroutineScope(testDispatcher)
         )
 
@@ -487,5 +501,54 @@ class AndroidAutoReliabilityTest {
 
         assertEquals("Greeting already played", secondResult.getOrNull())
         assertEquals(1, fakeTtsManager.speakCallCount)
+    }
+
+    // 14. Dynamic Device Location Detected (e.g. Mumbai) -> Greeting reflects detected city and coordinates
+    @Test
+    fun testScenario14_dynamicDeviceLocationDetected_greetingReflectsCurrentCity() = runTest(testDispatcher) {
+        fakePreferencesRepository.settings.value = DriveMateSettings(
+            greetingStyle = GreetingStyle.DETAILED
+        )
+        fakeLocationProvider.hasPermission = true
+        fakeLocationProvider.mockLocation = DeviceLocation(
+            latitude = 19.0760,
+            longitude = 72.8777,
+            cityName = "Mumbai"
+        )
+
+        val aaState = CarConnectionState.Connected(
+            connectionType = CarConnectionType.ANDROID_AUTO_PROJECTION,
+            deviceOrVehicleName = "Tata Nexon (Android Auto)"
+        )
+        fakeCarConnectionManager.stateFlow.value = aaState
+        advanceUntilIdle()
+
+        assertEquals(1, fakeTtsManager.speakCallCount)
+        val spoken = fakeTtsManager.lastSpokenText
+        assertNotNull(spoken)
+        assertTrue(spoken!!.contains("Mumbai"))
+    }
+
+    // 15. Location Permission Denied -> Gracefully falls back to configured settings city without failing
+    @Test
+    fun testScenario15_locationPermissionDenied_fallsBackToSettingsCity() = runTest(testDispatcher) {
+        fakePreferencesRepository.settings.value = DriveMateSettings(
+            greetingStyle = GreetingStyle.DETAILED
+        )
+        fakeLocationProvider.hasPermission = false
+        fakeLocationProvider.mockLocation = null
+
+        val aaState = CarConnectionState.Connected(
+            connectionType = CarConnectionType.ANDROID_AUTO_PROJECTION,
+            deviceOrVehicleName = "Tata Nexon (Android Auto)"
+        )
+        fakeCarConnectionManager.stateFlow.value = aaState
+        advanceUntilIdle()
+
+        assertEquals(1, fakeTtsManager.speakCallCount)
+        val spoken = fakeTtsManager.lastSpokenText
+        assertNotNull(spoken)
+        // Falls back to settings city "Pune"
+        assertTrue(spoken!!.contains("Pune"))
     }
 }

@@ -23,6 +23,9 @@ import com.shatrughna.drivemate.util.AppLogger
 import com.shatrughna.drivemate.weather.OpenMeteoWeatherRepository
 import com.shatrughna.drivemate.weather.WeatherRepository
 
+import com.shatrughna.drivemate.location.DeviceLocationProvider
+import com.shatrughna.drivemate.location.DeviceLocationProviderImpl
+
 class DriveMateApplication : Application() {
 
     lateinit var preferencesRepository: DriveMatePreferencesRepository
@@ -52,6 +55,9 @@ class DriveMateApplication : Application() {
     lateinit var tripTracker: TripTracker
         private set
 
+    lateinit var locationProvider: DeviceLocationProvider
+        private set
+
     lateinit var greetingController: GreetingController
         private set
 
@@ -68,6 +74,7 @@ class DriveMateApplication : Application() {
         vehicleCareManager = VehicleCareManagerImpl()
         destinationManager = DestinationManagerImpl()
         tripTracker = TripTrackerImpl(sessionManager, preferencesRepository)
+        locationProvider = DeviceLocationProviderImpl(this)
 
         greetingController = GreetingControllerImpl(
             preferencesRepository = preferencesRepository,
@@ -75,7 +82,8 @@ class DriveMateApplication : Application() {
             greetingGenerator = greetingGenerator,
             ttsManager = ttsManager,
             weatherRepository = weatherRepository,
-            vehicleCareManager = vehicleCareManager
+            vehicleCareManager = vehicleCareManager,
+            locationProvider = locationProvider
         )
 
         // Start connection monitoring, trip tracking, and greeting controller

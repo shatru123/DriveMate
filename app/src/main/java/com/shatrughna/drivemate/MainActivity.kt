@@ -47,7 +47,8 @@ class MainActivity : ComponentActivity() {
             weatherRepository = app.weatherRepository,
             vehicleCareManager = app.vehicleCareManager,
             destinationManager = app.destinationManager,
-            tripTracker = app.tripTracker
+            tripTracker = app.tripTracker,
+            locationProvider = app.locationProvider
         )
     }
 

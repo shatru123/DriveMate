@@ -24,6 +24,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
 
+import com.shatrughna.drivemate.location.DeviceLocationProvider
+
 /**
  * Orchestrator between driving session detection, weather, vehicle care, greeting generation, and TTS audio playback.
  */
@@ -44,6 +46,7 @@ class GreetingControllerImpl(
     private val ttsManager: GreetingTtsManager,
     private val weatherRepository: WeatherRepository,
     private val vehicleCareManager: VehicleCareManager,
+    private val locationProvider: DeviceLocationProvider? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 ) : GreetingController {
 
@@ -113,10 +116,18 @@ class GreetingControllerImpl(
         val weatherInfo: WeatherInfo? = if (settings.includeWeatherInGreeting) {
             try {
                 withTimeoutOrNull(2000L) {
+                    val location = if (settings.autoDetectLocation && locationProvider?.hasLocationPermission() == true) {
+                        locationProvider.getCurrentLocation()
+                    } else null
+
+                    val queryCity = location?.cityName ?: settings.weatherCityName
+                    val queryLat = location?.latitude ?: settings.weatherLatitude
+                    val queryLon = location?.longitude ?: settings.weatherLongitude
+
                     weatherRepository.getCurrentWeather(
-                        cityName = settings.weatherCityName,
-                        latitude = settings.weatherLatitude,
-                        longitude = settings.weatherLongitude
+                        cityName = queryCity,
+                        latitude = queryLat,
+                        longitude = queryLon
                     )
                 }
             } catch (e: Exception) {
@@ -202,10 +213,18 @@ class GreetingControllerImpl(
         val weatherInfo: WeatherInfo? = if (settings.includeWeatherInGreeting) {
             try {
                 withTimeoutOrNull(2000L) {
+                    val location = if (settings.autoDetectLocation && locationProvider?.hasLocationPermission() == true) {
+                        locationProvider.getCurrentLocation()
+                    } else null
+
+                    val queryCity = location?.cityName ?: settings.weatherCityName
+                    val queryLat = location?.latitude ?: settings.weatherLatitude
+                    val queryLon = location?.longitude ?: settings.weatherLongitude
+
                     weatherRepository.getCurrentWeather(
-                        cityName = settings.weatherCityName,
-                        latitude = settings.weatherLatitude,
-                        longitude = settings.weatherLongitude
+                        cityName = queryCity,
+                        latitude = queryLat,
+                        longitude = queryLon
                     )
                 }
             } catch (e: Exception) {

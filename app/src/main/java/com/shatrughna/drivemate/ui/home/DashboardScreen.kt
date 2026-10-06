@@ -47,6 +47,10 @@ import com.shatrughna.drivemate.ui.components.VehicleHeaderCard
 import com.shatrughna.drivemate.ui.components.WeatherSummaryCard
 import com.shatrughna.drivemate.ui.theme.DarkBackground
 import com.shatrughna.drivemate.ui.theme.NexonCyanPrimary
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
 import com.shatrughna.drivemate.ui.theme.NexonEmeraldAccent
 import com.shatrughna.drivemate.ui.theme.TextMuted
 import com.shatrughna.drivemate.ui.theme.TextPrimary
@@ -71,6 +75,27 @@ fun DashboardScreen(
     val tripStats by viewModel.tripStats.collectAsStateWithLifecycle()
     val destinations by viewModel.suggestedDestinations.collectAsStateWithLifecycle()
     val careInfo by viewModel.vehicleCareInfo.collectAsStateWithLifecycle()
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            viewModel.refreshWeather(forceRefresh = true)
+        }
+    }
+
+    LaunchedEffect(settings.autoDetectLocation) {
+        if (settings.autoDetectLocation && !viewModel.hasLocationPermission()) {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -142,7 +167,18 @@ fun DashboardScreen(
             // 2. Weather card (V2)
             WeatherSummaryCard(
                 weather = weather,
-                onRefreshWeather = { viewModel.refreshWeather(forceRefresh = true) }
+                onRefreshWeather = {
+                    if (settings.autoDetectLocation && !viewModel.hasLocationPermission()) {
+                        locationPermissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
+                            )
+                        )
+                    } else {
+                        viewModel.refreshWeather(forceRefresh = true)
+                    }
+                }
             )
 
             // 3. Android Auto / Car Connection card

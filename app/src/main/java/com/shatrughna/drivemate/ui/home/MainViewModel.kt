@@ -19,6 +19,7 @@ import com.shatrughna.drivemate.driving.TripTracker
 import com.shatrughna.drivemate.greeting.GreetingController
 import com.shatrughna.drivemate.greeting.GreetingGenerator
 import com.shatrughna.drivemate.util.AppLogger
+import com.shatrughna.drivemate.location.DeviceLocationProvider
 import com.shatrughna.drivemate.weather.WeatherRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -37,7 +38,8 @@ class MainViewModel(
     private val weatherRepository: WeatherRepository,
     private val vehicleCareManager: VehicleCareManager,
     private val destinationManager: DestinationManager,
-    private val tripTracker: TripTracker
+    private val tripTracker: TripTracker,
+    private val locationProvider: DeviceLocationProvider? = null
 ) : ViewModel() {
 
     val settings: StateFlow<DriveMateSettings> = preferencesRepository.settingsFlow
@@ -105,13 +107,25 @@ class MainViewModel(
         refreshWeather(forceRefresh = false)
     }
 
+    fun hasLocationPermission(): Boolean {
+        return locationProvider?.hasLocationPermission() == true
+    }
+
     fun refreshWeather(forceRefresh: Boolean = true) {
         viewModelScope.launch {
             val currentSettings = settings.value
+            val location = if (currentSettings.autoDetectLocation && locationProvider?.hasLocationPermission() == true) {
+                locationProvider.getCurrentLocation()
+            } else null
+
+            val queryCity = location?.cityName ?: currentSettings.weatherCityName
+            val queryLat = location?.latitude ?: currentSettings.weatherLatitude
+            val queryLon = location?.longitude ?: currentSettings.weatherLongitude
+
             _weather.value = weatherRepository.getCurrentWeather(
-                cityName = currentSettings.weatherCityName,
-                latitude = currentSettings.weatherLatitude,
-                longitude = currentSettings.weatherLongitude,
+                cityName = queryCity,
+                latitude = queryLat,
+                longitude = queryLon,
                 forceRefresh = forceRefresh
             )
         }
@@ -152,7 +166,8 @@ class MainViewModel(
         private val weatherRepository: WeatherRepository,
         private val vehicleCareManager: VehicleCareManager,
         private val destinationManager: DestinationManager,
-        private val tripTracker: TripTracker
+        private val tripTracker: TripTracker,
+        private val locationProvider: DeviceLocationProvider? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -165,7 +180,8 @@ class MainViewModel(
                 weatherRepository,
                 vehicleCareManager,
                 destinationManager,
-                tripTracker
+                tripTracker,
+                locationProvider
             ) as T
         }
     }

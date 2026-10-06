@@ -45,6 +45,7 @@ interface DriveMatePreferencesRepository {
 
     // V2 Methods
     suspend fun updateWeatherSettings(includeInGreeting: Boolean, cityName: String, lat: Double, lon: Double)
+    suspend fun updateAutoDetectLocation(enabled: Boolean)
     suspend fun updateVehicleCare(odometerKm: Int, nextServiceKm: Int, fuelReminder: Boolean)
     suspend fun updateFavoriteAddresses(home: String, office: String)
     suspend fun recordCompletedTrip(distanceKm: Float, durationMinutes: Long)
@@ -72,6 +73,7 @@ class DriveMatePreferencesRepositoryImpl(
 
         // V2 Keys
         val INCLUDE_WEATHER = booleanPreferencesKey("include_weather_in_greeting")
+        val AUTO_DETECT_LOCATION = booleanPreferencesKey("auto_detect_location")
         val WEATHER_CITY = stringPreferencesKey("weather_city_name")
         val WEATHER_LAT = doublePreferencesKey("weather_latitude")
         val WEATHER_LON = doublePreferencesKey("weather_longitude")
@@ -114,6 +116,7 @@ class DriveMatePreferencesRepositoryImpl(
                 autoMonitorBluetooth = preferences[PreferencesKeys.AUTO_MONITOR_BT] ?: true,
                 targetBluetoothName = preferences[PreferencesKeys.TARGET_BT_NAME] ?: "Tata Nexon",
                 includeWeatherInGreeting = preferences[PreferencesKeys.INCLUDE_WEATHER] ?: true,
+                autoDetectLocation = preferences[PreferencesKeys.AUTO_DETECT_LOCATION] ?: true,
                 weatherCityName = preferences[PreferencesKeys.WEATHER_CITY] ?: "Pune",
                 weatherLatitude = preferences[PreferencesKeys.WEATHER_LAT] ?: 18.5204,
                 weatherLongitude = preferences[PreferencesKeys.WEATHER_LON] ?: 73.8567,
@@ -232,6 +235,12 @@ class DriveMatePreferencesRepositoryImpl(
             preferences[PreferencesKeys.WEATHER_CITY] = cityName.trim()
             preferences[PreferencesKeys.WEATHER_LAT] = lat
             preferences[PreferencesKeys.WEATHER_LON] = lon
+        }
+    }
+
+    override suspend fun updateAutoDetectLocation(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.AUTO_DETECT_LOCATION] = enabled
         }
     }
 
