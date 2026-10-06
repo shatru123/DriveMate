@@ -1,6 +1,7 @@
 package com.shatrughna.drivemate.greeting
 
 import com.shatrughna.drivemate.data.model.GreetingStyle
+import com.shatrughna.drivemate.data.model.WeatherInfo
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -36,6 +37,8 @@ interface GreetingGenerator {
         vehicleVariant: String,
         style: GreetingStyle,
         customTemplate: String? = null,
+        weatherInfo: WeatherInfo? = null,
+        careReminder: String? = null,
         timestampEpochMillis: Long = System.currentTimeMillis(),
         zoneId: ZoneId = ZoneId.systemDefault()
     ): String
@@ -56,7 +59,13 @@ class GreetingGeneratorImpl : GreetingGenerator {
             "{brand}",
             "{model}",
             "{variant}",
-            "{timeOfDay}"
+            "{timeOfDay}",
+            // V2 Placeholders
+            "{weather}",
+            "{temperature}",
+            "{condition}",
+            "{city}",
+            "{careReminder}"
         )
     }
 
@@ -97,6 +106,8 @@ class GreetingGeneratorImpl : GreetingGenerator {
         vehicleVariant: String,
         style: GreetingStyle,
         customTemplate: String?,
+        weatherInfo: WeatherInfo?,
+        careReminder: String?,
         timestampEpochMillis: Long,
         zoneId: ZoneId
     ): String {
@@ -110,13 +121,16 @@ class GreetingGeneratorImpl : GreetingGenerator {
             GreetingStyle.SHORT -> {
                 "Hey $name, welcome to your $model."
             }
+
             GreetingStyle.NORMAL -> {
+                val weatherPhrase = if (weatherInfo != null) " It's ${weatherInfo.speechFormattedDescription}." else ""
                 when (timePeriod) {
                     TimePeriod.MORNING -> {
-                        "Good morning, $name. Welcome to your $brand $model. Have a safe drive."
+                        "Good morning, $name.$weatherPhrase Welcome to your $brand $model. Have a safe drive."
                     }
                     TimePeriod.AFTERNOON -> {
-                        "Good afternoon, $name. Welcome back to your $brand $model. Have a pleasant journey."
+                        val afternoonWeather = if (weatherInfo != null) " It's ${weatherInfo.displayTemperature} outside." else ""
+                        "Good afternoon, $name.$afternoonWeather Welcome back to your $brand $model. Have a pleasant journey."
                     }
                     TimePeriod.EVENING -> {
                         "Good evening, $name. Welcome back to your $model. Drive safely."
@@ -126,22 +140,37 @@ class GreetingGeneratorImpl : GreetingGenerator {
                     }
                 }
             }
+
             GreetingStyle.DETAILED -> {
                 val salutation = "${timePeriod.salutation}, $name."
-                "$salutation Welcome back to your $brand $model $variant. Your journey is ready. Have a safe and pleasant drive."
+                val weatherPhrase = if (weatherInfo != null) " It is currently ${weatherInfo.speechFormattedDescription}." else ""
+                val reminderPhrase = if (!careReminder.isNullOrBlank()) " $careReminder" else ""
+                "$salutation$weatherPhrase Welcome back to your $brand $model $variant. Your journey is ready.$reminderPhrase Have a safe and pleasant drive."
             }
+
             GreetingStyle.CUSTOM -> {
                 val template = customTemplate?.trim()
                 if (template.isNullOrBlank() || validateTemplate(template) is TemplateValidationResult.Invalid) {
-                    // Fall back to clean normal greeting if custom template is empty/invalid
-                    generateGreeting(name, brand, model, variant, GreetingStyle.NORMAL, null, timestampEpochMillis, zoneId)
+                    // Fall back to clean normal greeting
+                    generateGreeting(name, brand, model, variant, GreetingStyle.NORMAL, null, weatherInfo, careReminder, timestampEpochMillis, zoneId)
                 } else {
+                    val weatherDesc = weatherInfo?.speechFormattedDescription ?: "pleasant"
+                    val temp = weatherInfo?.displayTemperature ?: ""
+                    val cond = weatherInfo?.conditionText?.lowercase() ?: "clear"
+                    val city = weatherInfo?.cityName ?: ""
+                    val reminder = careReminder ?: ""
+
                     template
                         .replace("{name}", name)
                         .replace("{brand}", brand)
                         .replace("{model}", model)
                         .replace("{variant}", variant)
                         .replace("{timeOfDay}", timePeriod.tokenValue)
+                        .replace("{weather}", weatherDesc)
+                        .replace("{temperature}", temp)
+                        .replace("{condition}", cond)
+                        .replace("{city}", city)
+                        .replace("{careReminder}", reminder)
                 }
             }
         }

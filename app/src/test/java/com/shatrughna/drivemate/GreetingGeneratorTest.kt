@@ -1,6 +1,7 @@
 package com.shatrughna.drivemate
 
 import com.shatrughna.drivemate.data.model.GreetingStyle
+import com.shatrughna.drivemate.data.model.WeatherInfo
 import com.shatrughna.drivemate.greeting.GreetingGeneratorImpl
 import com.shatrughna.drivemate.greeting.TemplateValidationResult
 import com.shatrughna.drivemate.greeting.TimePeriod
@@ -165,5 +166,44 @@ class GreetingGeneratorTest {
         val invalidResult = result as TemplateValidationResult.Invalid
         assertTrue(invalidResult.unknownTokens.contains("{driver}"))
         assertTrue(invalidResult.unknownTokens.contains("{car}"))
+    }
+
+    @Test
+    fun testWeatherGreetingTokens() {
+        val weather = WeatherInfo(
+            temperatureCelsius = 24.0f,
+            weatherCode = 0,
+            conditionText = "Clear",
+            cityName = "Pune"
+        )
+        val template = "Good {timeOfDay}, {name}. It is {weather}. Ready for your {model} drive."
+        val greeting = generator.generateGreeting(
+            driverName = "Shatrughna",
+            vehicleBrand = "Tata",
+            vehicleModel = "Nexon",
+            vehicleVariant = "Creative+ S",
+            style = GreetingStyle.CUSTOM,
+            customTemplate = template,
+            weatherInfo = weather,
+            timestampEpochMillis = epochMillisForHour(8),
+            zoneId = zoneId
+        )
+        assertEquals("Good morning, Shatrughna. It is 24°C and clear in Pune. Ready for your Nexon drive.", greeting)
+    }
+
+    @Test
+    fun testCareReminderInjectionInDetailedStyle() {
+        val greeting = generator.generateGreeting(
+            driverName = "Shatrughna",
+            vehicleBrand = "Tata",
+            vehicleModel = "Nexon",
+            vehicleVariant = "Creative+ S",
+            style = GreetingStyle.DETAILED,
+            careReminder = "Please note: Your Tata Nexon service is due in 1200 km.",
+            timestampEpochMillis = epochMillisForHour(18),
+            zoneId = zoneId
+        )
+        assertTrue(greeting.contains("Please note: Your Tata Nexon service is due in 1200 km."))
+        assertTrue(greeting.contains("Have a safe and pleasant drive."))
     }
 }

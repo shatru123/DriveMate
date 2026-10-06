@@ -43,7 +43,11 @@ class MainActivity : ComponentActivity() {
             carConnectionManager = app.carConnectionManager,
             sessionManager = app.sessionManager,
             greetingController = app.greetingController,
-            greetingGenerator = app.greetingGenerator
+            greetingGenerator = app.greetingGenerator,
+            weatherRepository = app.weatherRepository,
+            vehicleCareManager = app.vehicleCareManager,
+            destinationManager = app.destinationManager,
+            tripTracker = app.tripTracker
         )
     }
 

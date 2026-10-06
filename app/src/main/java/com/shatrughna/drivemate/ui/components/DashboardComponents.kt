@@ -9,6 +9,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,10 +23,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -33,6 +40,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
@@ -47,12 +55,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shatrughna.drivemate.car.CarConnectionState
-import com.shatrughna.drivemate.car.CarConnectionType
+import com.shatrughna.drivemate.data.model.Destination
+import com.shatrughna.drivemate.data.model.DestinationType
 import com.shatrughna.drivemate.data.model.DriveMateSettings
+import com.shatrughna.drivemate.data.model.TripStats
+import com.shatrughna.drivemate.data.model.VehicleCareInfo
+import com.shatrughna.drivemate.data.model.WeatherInfo
 import com.shatrughna.drivemate.ui.theme.CardGradientEnd
 import com.shatrughna.drivemate.ui.theme.CardGradientStart
 import com.shatrughna.drivemate.ui.theme.DarkBorder
@@ -146,6 +157,300 @@ fun VehicleHeaderCard(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun WeatherSummaryCard(
+    weather: WeatherInfo,
+    onRefreshWeather: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, DarkBorder)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(DarkSurfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Cloud,
+                        contentDescription = "Weather",
+                        tint = NexonCyanPrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = weather.displayTemperature,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = weather.conditionText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = NexonCyanPrimary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Text(
+                        text = "${weather.cityName} • Live Weather",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary
+                    )
+                }
+            }
+
+            IconButton(onClick = onRefreshWeather) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Refresh Weather",
+                    tint = TextSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ActiveTripTickerCard(
+    tripStats: TripStats,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val alphaAnim by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseAlpha"
+    )
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+        border = BorderStroke(1.dp, NexonEmeraldAccent.copy(alpha = 0.5f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(NexonEmeraldAccent)
+                        .alpha(alphaAnim)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = "ACTIVE DRIVE IN PROGRESS",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = NexonEmeraldAccent
+                    )
+                    Text(
+                        text = "Session Time: ${tripStats.formattedActiveDuration}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextPrimary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(DarkBorder)
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = tripStats.formattedActiveDistance,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = NexonCyanPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun SmartDestinationRow(
+    destinations: List<Destination>,
+    onSelectDestination: (Destination) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "SUGGESTED DESTINATIONS",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = NexonCyanPrimary
+            )
+            Text(
+                text = "Tap to navigate in car",
+                style = MaterialTheme.typography.labelSmall,
+                color = TextMuted
+            )
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            destinations.take(2).forEach { dest ->
+                Card(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { onSelectDestination(dest) },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, DarkBorder)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(DarkSurfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = when (dest.iconType) {
+                                    DestinationType.HOME -> Icons.Default.Home
+                                    DestinationType.OFFICE -> Icons.Default.Work
+                                    else -> Icons.Default.Navigation
+                                },
+                                contentDescription = null,
+                                tint = NexonCyanPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = dest.title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = dest.subtitle,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextSecondary,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun VehicleCareSummaryCard(
+    careInfo: VehicleCareInfo,
+    modifier: Modifier = Modifier
+) {
+    val progress = (careInfo.currentOdometerKm % 15000) / 15000f
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, DarkBorder)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Build,
+                        contentDescription = null,
+                        tint = if (careInfo.isServiceDueSoon) NexonAmberAccent else NexonCyanPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Tata Nexon Vehicle Care",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    )
+                }
+
+                Text(
+                    text = "${careInfo.currentOdometerKm} km",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = NexonCyanPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp)),
+                color = if (careInfo.isServiceDueSoon) NexonAmberAccent else NexonCyanPrimary,
+                trackColor = DarkSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = careInfo.serviceStatusDescription,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (careInfo.isServiceDueSoon) NexonAmberAccent else TextSecondary
+            )
         }
     }
 }
@@ -335,7 +640,7 @@ fun GreetingStatusCard(
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Default.VolumeUp,
+                            imageVector = Icons.AutoMirrored.Filled.VolumeUp,
                             contentDescription = null,
                             tint = NexonCyanPrimary,
                             modifier = Modifier.size(16.dp)
@@ -416,7 +721,8 @@ fun GreetingStatusCard(
 }
 
 @Composable
-fun DrivingStatsPlaceholderCard(
+fun DailyDrivingStatsCard(
+    tripStats: TripStats,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -438,9 +744,9 @@ fun DrivingStatsPlaceholderCard(
                     color = TextPrimary
                 )
                 Text(
-                    text = "Ready for V2",
+                    text = "Live Tracking",
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextMuted
+                    color = NexonCyanPrimary
                 )
             }
 
@@ -450,11 +756,11 @@ fun DrivingStatsPlaceholderCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                StatItem(label = "Trips", value = "0")
+                StatItem(label = "Trips", value = "${tripStats.todayTripsCount}")
                 StatDivider()
-                StatItem(label = "Distance", value = "0 km")
+                StatItem(label = "Distance", value = tripStats.formattedTodayDistance)
                 StatDivider()
-                StatItem(label = "Duration", value = "0 min")
+                StatItem(label = "Duration", value = "${tripStats.todayTotalDurationMinutes} min")
             }
         }
     }

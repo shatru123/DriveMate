@@ -33,13 +33,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.shatrughna.drivemate.ui.components.ActiveTripTickerCard
 import com.shatrughna.drivemate.ui.components.ConnectionStatusCard
-import com.shatrughna.drivemate.ui.components.DrivingStatsPlaceholderCard
+import com.shatrughna.drivemate.ui.components.DailyDrivingStatsCard
 import com.shatrughna.drivemate.ui.components.GreetingStatusCard
+import com.shatrughna.drivemate.ui.components.SmartDestinationRow
+import com.shatrughna.drivemate.ui.components.VehicleCareSummaryCard
 import com.shatrughna.drivemate.ui.components.VehicleHeaderCard
+import com.shatrughna.drivemate.ui.components.WeatherSummaryCard
 import com.shatrughna.drivemate.ui.theme.DarkBackground
 import com.shatrughna.drivemate.ui.theme.NexonCyanPrimary
 import com.shatrughna.drivemate.ui.theme.NexonEmeraldAccent
@@ -54,6 +59,7 @@ fun DashboardScreen(
     onNavigateToSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val isSessionActive by viewModel.isSessionActive.collectAsStateWithLifecycle()
@@ -61,6 +67,10 @@ fun DashboardScreen(
     val isSpeaking by viewModel.isSpeaking.collectAsStateWithLifecycle()
     val currentGreetingText by viewModel.currentGreetingText.collectAsStateWithLifecycle()
     val isSimulating by viewModel.isSimulating.collectAsStateWithLifecycle()
+    val weather by viewModel.weather.collectAsStateWithLifecycle()
+    val tripStats by viewModel.tripStats.collectAsStateWithLifecycle()
+    val destinations by viewModel.suggestedDestinations.collectAsStateWithLifecycle()
+    val careInfo by viewModel.vehicleCareInfo.collectAsStateWithLifecycle()
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -121,44 +131,36 @@ fun DashboardScreen(
                 )
             }
 
-            // Session notification chip if active
-            AnimatedVisibility(visible = isSessionActive && hasGreetingPlayed) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(NexonEmeraldAccent.copy(alpha = 0.15f))
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            tint = NexonEmeraldAccent,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Driving session active • Greeting delivered",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = NexonEmeraldAccent,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
+            // Active Driving Session Banner / Ticker
+            AnimatedVisibility(visible = isSessionActive) {
+                ActiveTripTickerCard(tripStats = tripStats)
             }
 
             // 1. Vehicle info card
             VehicleHeaderCard(settings = settings)
 
-            // 2. Android Auto / Car Connection card
+            // 2. Weather card (V2)
+            WeatherSummaryCard(
+                weather = weather,
+                onRefreshWeather = { viewModel.refreshWeather(forceRefresh = true) }
+            )
+
+            // 3. Android Auto / Car Connection card
             ConnectionStatusCard(
                 connectionState = connectionState,
                 isSimulating = isSimulating,
                 onToggleSimulation = viewModel::toggleSimulation
             )
 
-            // 3. Greeting card with active quote & preview
+            // 4. Smart Suggested Destinations (V2)
+            if (destinations.isNotEmpty()) {
+                SmartDestinationRow(
+                    destinations = destinations,
+                    onSelectDestination = { dest -> viewModel.launchDestination(context, dest) }
+                )
+            }
+
+            // 5. Greeting card with active quote & preview
             GreetingStatusCard(
                 settings = settings,
                 currentGreetingText = currentGreetingText,
@@ -168,8 +170,11 @@ fun DashboardScreen(
                 onStopGreeting = viewModel::stopSpeaking
             )
 
-            // 4. Today's drive placeholder card
-            DrivingStatsPlaceholderCard()
+            // 6. Today's drive live tracking card (V2)
+            DailyDrivingStatsCard(tripStats = tripStats)
+
+            // 7. Vehicle Care & Service status card (V2)
+            VehicleCareSummaryCard(careInfo = careInfo)
 
             Spacer(modifier = Modifier.height(24.dp))
         }

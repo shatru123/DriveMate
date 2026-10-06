@@ -71,7 +71,6 @@ import com.shatrughna.drivemate.ui.theme.DarkBorder
 import com.shatrughna.drivemate.ui.theme.DarkSurface
 import com.shatrughna.drivemate.ui.theme.DarkSurfaceVariant
 import com.shatrughna.drivemate.ui.theme.NexonAmberAccent
-import com.shatrughna.drivemate.ui.theme.NexonCyanGlow
 import com.shatrughna.drivemate.ui.theme.NexonCyanPrimary
 import com.shatrughna.drivemate.ui.theme.NexonRedAccent
 import com.shatrughna.drivemate.ui.theme.TextMuted
@@ -94,6 +93,13 @@ fun SettingsScreen(
     var vehicleModelInput by remember(settings.vehicleModel) { mutableStateOf(settings.vehicleModel) }
     var vehicleVariantInput by remember(settings.vehicleVariant) { mutableStateOf(settings.vehicleVariant) }
     var customTemplateInput by remember(settings.customGreetingTemplate) { mutableStateOf(settings.customGreetingTemplate) }
+
+    // V2 inputs
+    var weatherCityInput by remember(settings.weatherCityName) { mutableStateOf(settings.weatherCityName) }
+    var odometerInput by remember(settings.odometerKm) { mutableStateOf(settings.odometerKm.toString()) }
+    var nextServiceInput by remember(settings.nextServiceKm) { mutableStateOf(settings.nextServiceKm.toString()) }
+    var homeAddressInput by remember(settings.homeAddress) { mutableStateOf(settings.homeAddress) }
+    var officeAddressInput by remember(settings.officeAddress) { mutableStateOf(settings.officeAddress) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -204,7 +210,172 @@ fun SettingsScreen(
                 }
             }
 
-            // 3. Greeting Section
+            // 3. Weather & Environmental Integration (V2)
+            SettingsSectionHeader(title = "Weather & Environment (V2)")
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = DarkSurface),
+                border = BorderStroke(1.dp, DarkBorder),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = "Include Weather in Greeting",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Speaks temperature & conditions on connection",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                        }
+                        Switch(
+                            checked = settings.includeWeatherInGreeting,
+                            onCheckedChange = {
+                                viewModel.updateWeatherSettings(
+                                    includeInGreeting = it,
+                                    cityName = weatherCityInput,
+                                    lat = settings.weatherLatitude,
+                                    lon = settings.weatherLongitude
+                                )
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = NexonCyanPrimary,
+                                checkedTrackColor = NexonCyanPrimary.copy(alpha = 0.3f)
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    OutlinedTextField(
+                        value = weatherCityInput,
+                        onValueChange = {
+                            weatherCityInput = it
+                            viewModel.updateWeatherSettings(
+                                includeInGreeting = settings.includeWeatherInGreeting,
+                                cityName = it,
+                                lat = settings.weatherLatitude,
+                                lon = settings.weatherLongitude
+                            )
+                        },
+                        label = { Text("City Name (e.g. Pune)") },
+                        singleLine = true,
+                        colors = outlinedTextFieldColors(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // 4. Vehicle Care & Service (V2)
+            SettingsSectionHeader(title = "Vehicle Care & Maintenance (V2)")
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = DarkSurface),
+                border = BorderStroke(1.dp, DarkBorder),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = odometerInput,
+                        onValueChange = {
+                            odometerInput = it
+                            val parsedOdo = it.toIntOrNull() ?: settings.odometerKm
+                            viewModel.updateVehicleCare(parsedOdo, settings.nextServiceKm, settings.fuelReminderEnabled)
+                        },
+                        label = { Text("Current Odometer (km)") },
+                        singleLine = true,
+                        colors = outlinedTextFieldColors(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = nextServiceInput,
+                        onValueChange = {
+                            nextServiceInput = it
+                            val parsedNext = it.toIntOrNull() ?: settings.nextServiceKm
+                            viewModel.updateVehicleCare(settings.odometerKm, parsedNext, settings.fuelReminderEnabled)
+                        },
+                        label = { Text("Next Service Target (km, e.g. 15000)") },
+                        singleLine = true,
+                        colors = outlinedTextFieldColors(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Fuel & Range Check Alert",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = TextPrimary
+                        )
+                        Switch(
+                            checked = settings.fuelReminderEnabled,
+                            onCheckedChange = {
+                                viewModel.updateVehicleCare(settings.odometerKm, settings.nextServiceKm, it)
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = NexonCyanPrimary,
+                                checkedTrackColor = NexonCyanPrimary.copy(alpha = 0.3f)
+                            )
+                        )
+                    }
+                }
+            }
+
+            // 5. Favorite Destinations (V2)
+            SettingsSectionHeader(title = "Favorite Destinations (V2)")
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = DarkSurface),
+                border = BorderStroke(1.dp, DarkBorder),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = homeAddressInput,
+                        onValueChange = {
+                            homeAddressInput = it
+                            viewModel.updateFavoriteAddresses(it, officeAddressInput)
+                        },
+                        label = { Text("Home Address / Landmark") },
+                        singleLine = true,
+                        colors = outlinedTextFieldColors(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = officeAddressInput,
+                        onValueChange = {
+                            officeAddressInput = it
+                            viewModel.updateFavoriteAddresses(homeAddressInput, it)
+                        },
+                        label = { Text("Office Address / Workplace") },
+                        singleLine = true,
+                        colors = outlinedTextFieldColors(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // 6. Greeting Section
             SettingsSectionHeader(title = "Welcome Greeting Experience")
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -303,7 +474,7 @@ fun SettingsScreen(
                                     customTemplateInput = it
                                     viewModel.updateCustomTemplate(it)
                                 },
-                                placeholder = { Text("e.g. Good {timeOfDay}, {name}. Welcome to your {brand} {model}.") },
+                                placeholder = { Text("e.g. Good {timeOfDay}, {name}. It's {weather}. Welcome to your {brand} {model}.") },
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = outlinedTextFieldColors(),
                                 minLines = 2,
@@ -369,7 +540,7 @@ fun SettingsScreen(
                 }
             }
 
-            // 4. Voice & Speech Controls
+            // 7. Voice & Speech Controls
             SettingsSectionHeader(title = "Voice & Speech Engine")
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -440,7 +611,7 @@ fun SettingsScreen(
                 }
             }
 
-            // 5. Testing & Verification
+            // 8. Testing & Verification
             SettingsSectionHeader(title = "Test & Preview")
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -510,7 +681,7 @@ fun SettingsScreen(
                 }
             }
 
-            // 6. Platform Limitations & Android Auto Compatibility
+            // 9. Platform Limitations & Android Auto Compatibility
             SettingsSectionHeader(title = "Android Auto & Platform Safety")
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -548,7 +719,7 @@ fun SettingsScreen(
                 }
             }
 
-            // 7. About & Reset
+            // 10. About & Reset
             SettingsSectionHeader(title = "About DriveMate")
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -564,7 +735,7 @@ fun SettingsScreen(
                     ) {
                         Column {
                             Text(
-                                text = "DriveMate v1.0.0",
+                                text = "DriveMate v2.0.0",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
@@ -580,7 +751,7 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
-                        text = "100% on-device. No telemetry, no background network calls, and no unnecessary permissions requested.",
+                        text = "100% on-device. No telemetry, no background network tracking, and minimal permissions.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextMuted
                     )

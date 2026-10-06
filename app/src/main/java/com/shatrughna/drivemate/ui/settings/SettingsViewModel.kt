@@ -108,6 +108,24 @@ class SettingsViewModel(
         }
     }
 
+    fun updateWeatherSettings(includeInGreeting: Boolean, cityName: String, lat: Double, lon: Double) {
+        viewModelScope.launch {
+            preferencesRepository.updateWeatherSettings(includeInGreeting, cityName, lat, lon)
+        }
+    }
+
+    fun updateVehicleCare(odometerKm: Int, nextServiceKm: Int, fuelReminder: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.updateVehicleCare(odometerKm, nextServiceKm, fuelReminder)
+        }
+    }
+
+    fun updateFavoriteAddresses(home: String, office: String) {
+        viewModelScope.launch {
+            preferencesRepository.updateFavoriteAddresses(home, office)
+        }
+    }
+
     fun previewGreeting() {
         viewModelScope.launch {
             greetingController.previewGreeting(settings.value)

@@ -1,9 +1,12 @@
 package com.shatrughna.drivemate.greeting
 
+import com.shatrughna.drivemate.care.VehicleCareManager
 import com.shatrughna.drivemate.data.model.DriveMateSettings
+import com.shatrughna.drivemate.data.model.WeatherInfo
 import com.shatrughna.drivemate.data.preferences.DriveMatePreferencesRepository
 import com.shatrughna.drivemate.driving.DrivingSessionManager
 import com.shatrughna.drivemate.util.AppLogger
+import com.shatrughna.drivemate.weather.WeatherRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -16,7 +19,7 @@ import kotlinx.coroutines.launch
 import java.util.Locale
 
 /**
- * Orchestrator between driving session detection, greeting generation, and TTS audio playback.
+ * Orchestrator between driving session detection, weather, vehicle care, greeting generation, and TTS audio playback.
  */
 interface GreetingController {
     val lastSpokenGreeting: StateFlow<String>
@@ -33,6 +36,8 @@ class GreetingControllerImpl(
     private val sessionManager: DrivingSessionManager,
     private val greetingGenerator: GreetingGenerator,
     private val ttsManager: GreetingTtsManager,
+    private val weatherRepository: WeatherRepository,
+    private val vehicleCareManager: VehicleCareManager,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 ) : GreetingController {
 
@@ -73,13 +78,31 @@ class GreetingControllerImpl(
             return Result.success("Greeting already played")
         }
 
+        val weatherInfo: WeatherInfo? = if (settings.includeWeatherInGreeting) {
+            try {
+                weatherRepository.getCurrentWeather(
+                    cityName = settings.weatherCityName,
+                    latitude = settings.weatherLatitude,
+                    longitude = settings.weatherLongitude
+                )
+            } catch (e: Exception) {
+                null
+            }
+        } else {
+            null
+        }
+
+        val careReminder = vehicleCareManager.generateCareReminderPhrase(settings)
+
         val greetingText = greetingGenerator.generateGreeting(
             driverName = settings.driverName,
             vehicleBrand = settings.vehicleBrand,
             vehicleModel = settings.vehicleModel,
             vehicleVariant = settings.vehicleVariant,
             style = settings.greetingStyle,
-            customTemplate = settings.customGreetingTemplate
+            customTemplate = settings.customGreetingTemplate,
+            weatherInfo = weatherInfo,
+            careReminder = careReminder
         )
 
         _lastSpokenGreeting.value = greetingText
@@ -110,13 +133,31 @@ class GreetingControllerImpl(
     override suspend fun previewGreeting(customSettings: DriveMateSettings?): Result<String> {
         val settings = customSettings ?: preferencesRepository.settingsFlow.first()
 
+        val weatherInfo: WeatherInfo? = if (settings.includeWeatherInGreeting) {
+            try {
+                weatherRepository.getCurrentWeather(
+                    cityName = settings.weatherCityName,
+                    latitude = settings.weatherLatitude,
+                    longitude = settings.weatherLongitude
+                )
+            } catch (e: Exception) {
+                null
+            }
+        } else {
+            null
+        }
+
+        val careReminder = vehicleCareManager.generateCareReminderPhrase(settings)
+
         val greetingText = greetingGenerator.generateGreeting(
             driverName = settings.driverName,
             vehicleBrand = settings.vehicleBrand,
             vehicleModel = settings.vehicleModel,
             vehicleVariant = settings.vehicleVariant,
             style = settings.greetingStyle,
-            customTemplate = settings.customGreetingTemplate
+            customTemplate = settings.customGreetingTemplate,
+            weatherInfo = weatherInfo,
+            careReminder = careReminder
         )
 
         _lastSpokenGreeting.value = greetingText

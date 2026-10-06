@@ -248,11 +248,11 @@ The test suite validates greeting generation, session deduplication, and state m
 
 ## 🗺️ Roadmap
 
-### Version 2.0 (Connected Vehicle Enhancements)
-- [ ] **Live Weather & Environmental Context**: Morning greeting enriched with current weather: *"Good morning, Shatrughna. It's 24°C and clear in Pune. Welcome to your Tata Nexon."*
-- [ ] **Trip & Distance Tracking**: GPS-assisted mileage logging and drive duration statistics.
-- [ ] **Maintenance & Service Reminders**: Smart intervals for tire rotations, routine service, and fuel level checks.
-- [ ] **Favorite Routes & Destinations**: Work/home commute prediction based on time of day.
+### Version 2.0 (Connected Vehicle Enhancements) - Released ✅
+- [x] **Live Weather & Environmental Context**: Real-time Open-Meteo weather integration: *"Good morning, Shatrughna. It's 27°C and clear in Pune. Welcome to your Tata Nexon."*
+- [x] **Trip & Distance Tracking**: Active driving session timer, distance tracker, and persistent "Today's Drive" metrics.
+- [x] **Maintenance & Service Reminders**: Tata Nexon service intervals (15,000 km), fuel level alerts, and care prompts.
+- [x] **Smart Destination Awareness**: Time-of-day predictions (Home / Office) with one-tap Android Auto navigation launch.
 
 ### Version 3.0 (Autonomous AI Companion)
 - [ ] **Multi-Model AI Integration**: On-device / cloud LLM integration (Google Gemini / Claude / OpenAI).

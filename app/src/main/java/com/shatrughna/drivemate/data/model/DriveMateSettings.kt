@@ -1,7 +1,7 @@
 package com.shatrughna.drivemate.data.model
 
 /**
- * Persisted application settings for DriveMate.
+ * Persisted application settings for DriveMate (V2).
  */
 data class DriveMateSettings(
     val driverName: String = "Shatrughna",
@@ -16,7 +16,17 @@ data class DriveMateSettings(
     val languageTag: String = "en-IN",
     val voiceName: String? = null,
     val autoMonitorBluetooth: Boolean = true,
-    val targetBluetoothName: String = "Tata Nexon"
+    val targetBluetoothName: String = "Tata Nexon",
+    // V2 Features
+    val includeWeatherInGreeting: Boolean = true,
+    val weatherCityName: String = "Pune",
+    val weatherLatitude: Double = 18.5204,
+    val weatherLongitude: Double = 73.8567,
+    val odometerKm: Int = 12500,
+    val nextServiceKm: Int = 15000,
+    val fuelReminderEnabled: Boolean = true,
+    val homeAddress: String = "Home",
+    val officeAddress: String = "Office"
 ) {
     val fullVehicleName: String
         get() = "$vehicleBrand $vehicleModel $vehicleVariant".trim()
