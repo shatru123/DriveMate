@@ -2,14 +2,22 @@ package com.shatrughna.drivemate.data.model
 
 /**
  * Maintenance and vehicle care information tailored for Tata Nexon.
+ * Honest data presentation: Fuel percentage is null/unavailable unless
+ * read from real OBD-II / CAN-bus vehicle telemetry.
  */
 data class VehicleCareInfo(
     val currentOdometerKm: Int = 12500,
     val nextServiceTargetKm: Int = 15000,
-    val isFuelReminderEnabled: Boolean = true,
-    val estimatedFuelLevelPercent: Int = 68,
+    val isFuelReminderEnabled: Boolean = false,
+    val estimatedFuelLevelPercent: Int? = null,
     val daysUntilServiceEstimate: Int = 45
 ) {
+    val isFuelLevelAvailable: Boolean
+        get() = estimatedFuelLevelPercent != null
+
+    val fuelStatusDescription: String
+        get() = estimatedFuelLevelPercent?.let { "$it%" } ?: "Not available"
+
     val distanceRemainingKm: Int
         get() = (nextServiceTargetKm - currentOdometerKm).coerceAtLeast(0)
 

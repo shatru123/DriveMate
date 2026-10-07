@@ -267,15 +267,21 @@ The test suite validates greeting generation, session deduplication, and state m
 
 ## 🗺️ Roadmap
 
-### Version 2.0 (Connected Vehicle Enhancements) - Released ✅
-- [x] **Live Weather & Environmental Context**: Real-time Open-Meteo weather integration: *"Good morning, Shatrughna. It's 27°C and clear in Pune. Welcome to your Tata Nexon."*
-- [x] **Trip & Distance Tracking**: Active driving session timer, distance tracker, and persistent "Today's Drive" metrics.
-- [x] **Maintenance & Service Reminders**: Tata Nexon service intervals (15,000 km), fuel level alerts, and care prompts.
-- [x] **Smart Destination Awareness**: Time-of-day predictions (Home / Office) with one-tap Android Auto navigation launch.
+### Version 2.5 (Hands-Free Voice & Android Auto Car Screen) - Released ✅
+- [x] **Hands-Free "Hey DriveMate" Voice Activation**: SpeechRecognizerWakeWordEngine with instant trailing command parsing ("Hey DriveMate, navigate to office"), 6s timeout, and mic release on disconnect.
+- [x] **Native Android Auto Car Screen Dashboard**: `DriveMateCarAppService` and `DriveMateCarSession` implementing driver-distraction-safe screens:
+  - `DriveMateHomeScreen`: Glanceable greeting, weather, trip stats, and quick actions.
+  - `CarVoiceAssistantScreen`: Voice interaction status and verbal responses.
+  - `CarTripStatusScreen`: Live drive duration, real GPS distance, and average speed.
+  - `CarWeatherScreen`: Localized live weather and forecasts.
+  - `CarFindMyCarScreen`: Parked location coordinates and walking guidance.
+- [x] **Location-Aware Weather Resolver & Cache**: `WeatherLocationResolver` dynamically queries device GPS without implicit Pune fallbacks, cached via geographic buckets (`WeatherCacheKey`).
+- [x] **Real GPS Trip Tracking & Data Integrity**: Breadcrumb recording with 5-meter noise threshold and >160 km/h jump rejection; removed all fabricated/simulated distance and fuel approximations.
+- [x] **Find My Nexon & Fatigue Alerts**: Parked location recorder with reverse geocoding and 2-hour continuous driving fatigue warning.
 
 ### Version 3.0 (Autonomous AI Companion)
-- [ ] **Multi-Model AI Integration**: On-device / cloud LLM integration (Google Gemini / Claude / OpenAI).
-- [ ] **Context-Aware Dialogue**: Proactive updates on route traffic, news briefings, and intelligent conversational assistance.
+- [ ] **Multi-Model LLM Integration**: On-device / cloud LLM integration (Google Gemini / Claude / OpenAI).
+- [ ] **Proactive Driving Intelligence**: Real-time traffic anomaly predictions and intelligent conversational debriefs.
 
 ---
 

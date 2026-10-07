@@ -52,6 +52,9 @@ interface DriveMatePreferencesRepository {
     suspend fun updateLastParkedLocation(lat: Double, lon: Double, address: String?)
     suspend fun updateDriverFatigueAlert(enabled: Boolean)
     suspend fun updatePreferredMusicApp(app: String)
+    suspend fun updateVoiceAssistantEnabled(enabled: Boolean)
+    suspend fun updateHeyDriveMateEnabled(enabled: Boolean)
+    suspend fun updateWakeWordSensitivity(sensitivity: Float)
     suspend fun resetToDefaults()
 }
 
@@ -91,6 +94,9 @@ class DriveMatePreferencesRepositoryImpl(
         val LAST_PARKED_TIMESTAMP = longPreferencesKey("last_parked_timestamp_millis")
         val DRIVER_FATIGUE_ALERT = booleanPreferencesKey("driver_fatigue_alert_enabled")
         val PREFERRED_MUSIC_APP = stringPreferencesKey("preferred_music_app")
+        val VOICE_ASSISTANT_ENABLED = booleanPreferencesKey("voice_assistant_enabled")
+        val HEY_DRIVEMATE_ENABLED = booleanPreferencesKey("hey_drivemate_enabled")
+        val WAKE_WORD_SENSITIVITY = floatPreferencesKey("wake_word_sensitivity")
 
         // Trip stats keys
         val TODAY_TRIPS = intPreferencesKey("today_trips_count")
@@ -126,12 +132,12 @@ class DriveMatePreferencesRepositoryImpl(
                 targetBluetoothName = preferences[PreferencesKeys.TARGET_BT_NAME] ?: "Tata Nexon",
                 includeWeatherInGreeting = preferences[PreferencesKeys.INCLUDE_WEATHER] ?: true,
                 autoDetectLocation = preferences[PreferencesKeys.AUTO_DETECT_LOCATION] ?: true,
-                weatherCityName = preferences[PreferencesKeys.WEATHER_CITY] ?: "Pune",
-                weatherLatitude = preferences[PreferencesKeys.WEATHER_LAT] ?: 18.5204,
-                weatherLongitude = preferences[PreferencesKeys.WEATHER_LON] ?: 73.8567,
+                weatherCityName = preferences[PreferencesKeys.WEATHER_CITY] ?: "",
+                weatherLatitude = preferences[PreferencesKeys.WEATHER_LAT] ?: 0.0,
+                weatherLongitude = preferences[PreferencesKeys.WEATHER_LON] ?: 0.0,
                 odometerKm = preferences[PreferencesKeys.ODOMETER_KM] ?: 12500,
                 nextServiceKm = preferences[PreferencesKeys.NEXT_SERVICE_KM] ?: 15000,
-                fuelReminderEnabled = preferences[PreferencesKeys.FUEL_REMINDER] ?: true,
+                fuelReminderEnabled = preferences[PreferencesKeys.FUEL_REMINDER] ?: false,
                 homeAddress = preferences[PreferencesKeys.HOME_ADDRESS] ?: "Home",
                 officeAddress = preferences[PreferencesKeys.OFFICE_ADDRESS] ?: "Office",
                 lastParkedLatitude = preferences[PreferencesKeys.LAST_PARKED_LAT],
@@ -139,7 +145,10 @@ class DriveMatePreferencesRepositoryImpl(
                 lastParkedAddress = preferences[PreferencesKeys.LAST_PARKED_ADDRESS],
                 lastParkedTimestampMillis = preferences[PreferencesKeys.LAST_PARKED_TIMESTAMP],
                 driverFatigueAlertEnabled = preferences[PreferencesKeys.DRIVER_FATIGUE_ALERT] ?: true,
-                preferredMusicApp = preferences[PreferencesKeys.PREFERRED_MUSIC_APP] ?: "Spotify"
+                preferredMusicApp = preferences[PreferencesKeys.PREFERRED_MUSIC_APP] ?: "Spotify",
+                voiceAssistantEnabled = preferences[PreferencesKeys.VOICE_ASSISTANT_ENABLED] ?: true,
+                heyDriveMateEnabled = preferences[PreferencesKeys.HEY_DRIVEMATE_ENABLED] ?: true,
+                wakeWordSensitivity = preferences[PreferencesKeys.WAKE_WORD_SENSITIVITY] ?: 0.5f
             )
         }
 
@@ -322,6 +331,24 @@ class DriveMatePreferencesRepositoryImpl(
     override suspend fun updatePreferredMusicApp(app: String) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.PREFERRED_MUSIC_APP] = app
+        }
+    }
+
+    override suspend fun updateVoiceAssistantEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.VOICE_ASSISTANT_ENABLED] = enabled
+        }
+    }
+
+    override suspend fun updateHeyDriveMateEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.HEY_DRIVEMATE_ENABLED] = enabled
+        }
+    }
+
+    override suspend fun updateWakeWordSensitivity(sensitivity: Float) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.WAKE_WORD_SENSITIVITY] = sensitivity.coerceIn(0.1f, 1.0f)
         }
     }
 

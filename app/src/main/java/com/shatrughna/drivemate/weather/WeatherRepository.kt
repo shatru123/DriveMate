@@ -9,13 +9,38 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToLong
+
+/**
+ * Normalized geo-bucket key for location-aware weather caching.
+ * Rounded to 2 decimal places (~1.1 km resolution).
+ */
+data class WeatherCacheKey(
+    val latBucket: Long,
+    val lonBucket: Long
+) {
+    companion object {
+        fun fromCoordinates(latitude: Double, longitude: Double): WeatherCacheKey {
+            return WeatherCacheKey(
+                latBucket = (latitude * 100.0).roundToLong(),
+                lonBucket = (longitude * 100.0).roundToLong()
+            )
+        }
+    }
+}
+
+private data class CachedWeatherEntry(
+    val weather: WeatherInfo,
+    val timestampMillis: Long
+)
 
 interface WeatherRepository {
     suspend fun getCurrentWeather(
-        cityName: String = "Pune",
-        latitude: Double = 18.5204,
-        longitude: Double = 73.8567,
+        cityName: String,
+        latitude: Double,
+        longitude: Double,
         forceRefresh: Boolean = false
     ): WeatherInfo
 
@@ -24,8 +49,7 @@ interface WeatherRepository {
 
 class OpenMeteoWeatherRepository : WeatherRepository {
 
-    private var cachedWeather: WeatherInfo? = null
-    private var lastFetchTimestamp: Long = 0L
+    private val cache = ConcurrentHashMap<WeatherCacheKey, CachedWeatherEntry>()
     private val cacheDurationMillis = TimeUnit.MINUTES.toMillis(30)
 
     override fun mapWmoCodeToCondition(code: Int): String {
@@ -52,28 +76,28 @@ class OpenMeteoWeatherRepository : WeatherRepository {
         forceRefresh: Boolean
     ): WeatherInfo = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
-        val cached = cachedWeather
+        val cacheKey = WeatherCacheKey.fromCoordinates(latitude, longitude)
+        val cachedEntry = cache[cacheKey]
 
-        if (!forceRefresh && cached != null && (now - lastFetchTimestamp) < cacheDurationMillis) {
-            AppLogger.d(AppLogger.Tag.APP, "Returning cached weather for ${cached.cityName}: ${cached.displayTemperature}")
-            return@withContext cached
-        }
-
-        if (cityName.isBlank()) {
-            AppLogger.d(AppLogger.Tag.APP, "City name is blank, skipping network weather fetch")
-            return@withContext cached ?: WeatherInfo(
-                temperatureCelsius = 24.0f,
-                weatherCode = 0,
-                conditionText = "Clear",
-                cityName = "Local",
-                isFetchedFromNetwork = false,
-                timestampMillis = now
+        // 1. Check location-specific cache (fresh within 30 min)
+        if (!forceRefresh && cachedEntry != null && (now - cachedEntry.timestampMillis) < cacheDurationMillis) {
+            AppLogger.d(
+                AppLogger.Tag.APP,
+                "Returning location-cached weather for ${cachedEntry.weather.cityName.ifBlank { "Coordinates" }}: ${cachedEntry.weather.displayTemperature}"
             )
+            return@withContext cachedEntry.weather
         }
 
+        // If coordinates are invalid/zero and city is blank, fail honestly
+        if (latitude == 0.0 && longitude == 0.0 && cityName.isBlank()) {
+            AppLogger.d(AppLogger.Tag.APP, "Location is empty/unavailable, returning unavailable weather.")
+            return@withContext WeatherInfo.unavailable()
+        }
+
+        // 2. Fetch live weather from Open-Meteo with bounded 2s timeout
         try {
             val endpoint = "https://api.open-meteo.com/v1/forecast?latitude=$latitude&longitude=$longitude&current=temperature_2m,weather_code"
-            AppLogger.i(AppLogger.Tag.APP, "Fetching live weather from Open-Meteo: $endpoint")
+            AppLogger.i(AppLogger.Tag.APP, "Fetching live weather from Open-Meteo for ($latitude, $longitude): $endpoint")
 
             val url = URL(endpoint)
             val connection = (url.openConnection() as HttpURLConnection).apply {
@@ -100,28 +124,27 @@ class OpenMeteoWeatherRepository : WeatherRepository {
                     conditionText = condition,
                     cityName = cityName,
                     isFetchedFromNetwork = true,
+                    isAvailable = true,
                     timestampMillis = now
                 )
 
-                cachedWeather = result
-                lastFetchTimestamp = now
+                cache[cacheKey] = CachedWeatherEntry(result, now)
                 AppLogger.i(AppLogger.Tag.APP, "Weather successfully updated: ${result.speechFormattedDescription}")
                 return@withContext result
             } else {
                 AppLogger.w(AppLogger.Tag.APP, "Open-Meteo returned HTTP ${connection.responseCode}")
             }
         } catch (e: Exception) {
-            AppLogger.w(AppLogger.Tag.APP, "Could not fetch weather from Open-Meteo (network unavailable or timeout): ${e.message}")
+            AppLogger.w(AppLogger.Tag.APP, "Could not fetch weather from Open-Meteo: ${e.message}")
         }
 
-        // Return cached or fallback if offline
-        return@withContext cached ?: WeatherInfo(
-            temperatureCelsius = 24.0f,
-            weatherCode = 0,
-            conditionText = "Clear",
-            cityName = cityName,
-            isFetchedFromNetwork = false,
-            timestampMillis = now
-        )
+        // 3. Fallback: If network failed, only return cache if it matches the SAME location
+        if (cachedEntry != null) {
+            AppLogger.i(AppLogger.Tag.APP, "Using stale cached weather for same location ($cacheKey) during network failure.")
+            return@withContext cachedEntry.weather.copy(isFetchedFromNetwork = false)
+        }
+
+        // 4. Honest unavailable response: NEVER fabricate fake weather from a different city!
+        return@withContext WeatherInfo.unavailable(cityName = cityName)
     }
 }

@@ -123,13 +123,14 @@ class GreetingGeneratorImpl : GreetingGenerator {
             }
 
             GreetingStyle.NORMAL -> {
-                val weatherPhrase = if (weatherInfo != null) " It's ${weatherInfo.speechFormattedDescription}." else ""
+                val hasWeather = weatherInfo != null && weatherInfo.isAvailable
+                val weatherPhrase = if (hasWeather) " It's ${weatherInfo.speechFormattedDescription}." else ""
                 when (timePeriod) {
                     TimePeriod.MORNING -> {
                         "Good morning, $name.$weatherPhrase Welcome to your $brand $model. Have a safe drive."
                     }
                     TimePeriod.AFTERNOON -> {
-                        val afternoonWeather = if (weatherInfo != null) " It's ${weatherInfo.displayTemperature} outside." else ""
+                        val afternoonWeather = if (hasWeather) " It's ${weatherInfo.displayTemperature} outside." else ""
                         "Good afternoon, $name.$afternoonWeather Welcome back to your $brand $model. Have a pleasant journey."
                     }
                     TimePeriod.EVENING -> {
@@ -142,8 +143,9 @@ class GreetingGeneratorImpl : GreetingGenerator {
             }
 
             GreetingStyle.DETAILED -> {
+                val hasWeather = weatherInfo != null && weatherInfo.isAvailable
                 val salutation = "${timePeriod.salutation}, $name."
-                val weatherPhrase = if (weatherInfo != null) " It is currently ${weatherInfo.speechFormattedDescription}." else ""
+                val weatherPhrase = if (hasWeather) " It is currently ${weatherInfo.speechFormattedDescription}." else ""
                 val reminderPhrase = if (!careReminder.isNullOrBlank()) " $careReminder" else ""
                 "$salutation$weatherPhrase Welcome back to your $brand $model $variant. Your journey is ready.$reminderPhrase Have a safe and pleasant drive."
             }

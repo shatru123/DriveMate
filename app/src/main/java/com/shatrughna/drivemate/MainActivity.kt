@@ -50,7 +50,9 @@ class MainActivity : ComponentActivity() {
             tripTracker = app.tripTracker,
             locationProvider = app.locationProvider,
             voiceAssistantManager = app.voiceAssistantManager,
-            tripHistoryRepository = app.tripHistoryRepository
+            tripHistoryRepository = app.tripHistoryRepository,
+            locationResolver = app.locationResolver,
+            wakeWordManager = app.wakeWordManager
         )
     }
 

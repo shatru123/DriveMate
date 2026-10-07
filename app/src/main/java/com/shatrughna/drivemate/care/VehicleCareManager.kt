@@ -15,7 +15,7 @@ class VehicleCareManagerImpl : VehicleCareManager {
             currentOdometerKm = settings.odometerKm,
             nextServiceTargetKm = settings.nextServiceKm,
             isFuelReminderEnabled = settings.fuelReminderEnabled,
-            estimatedFuelLevelPercent = 68
+            estimatedFuelLevelPercent = null // Real vehicle telemetry unavailable without direct CAN / OBD integration
         )
     }
 
@@ -26,8 +26,10 @@ class VehicleCareManagerImpl : VehicleCareManager {
             return "Please note: Your Tata Nexon service is due in ${careInfo.distanceRemainingKm} km."
         }
 
-        if (settings.fuelReminderEnabled && careInfo.estimatedFuelLevelPercent < 25) {
-            return "Reminder: Fuel level is low. Please consider refueling soon."
+        // Only trigger fuel reminder if REAL fuel telemetry is present
+        val fuel = careInfo.estimatedFuelLevelPercent
+        if (settings.fuelReminderEnabled && fuel != null && fuel < 25) {
+            return "Reminder: Fuel level is low at $fuel%. Please consider refueling soon."
         }
 
         return null

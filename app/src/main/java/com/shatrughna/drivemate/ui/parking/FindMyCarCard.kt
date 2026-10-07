@@ -11,7 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DirectionsWalk
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.LocalParking
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -87,7 +87,7 @@ fun FindMyCarCard(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.DirectionsWalk,
+                        imageVector = Icons.AutoMirrored.Filled.DirectionsWalk,
                         contentDescription = "Walk to car",
                         tint = Color.Black,
                         modifier = Modifier.size(16.dp)

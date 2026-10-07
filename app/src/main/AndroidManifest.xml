@@ -79,6 +79,20 @@
             </intent-filter>
         </receiver>
 
+        <!-- Official Android Auto Car App Service for Head Unit Dashboard -->
+        <service
+            android:name=".car.DriveMateCarAppService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.IOT" />
+            </intent-filter>
+        </service>
+
+        <meta-data
+            android:name="androidx.car.app.minCarApiLevel"
+            android:value="1" />
+
     </application>
 
 </manifest>

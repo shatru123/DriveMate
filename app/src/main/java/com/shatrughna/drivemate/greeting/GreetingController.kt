@@ -25,6 +25,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
 
 import com.shatrughna.drivemate.location.DeviceLocationProvider
+import com.shatrughna.drivemate.location.WeatherLocationResolver
+import com.shatrughna.drivemate.location.WeatherLocationResolverImpl
 
 /**
  * Orchestrator between driving session detection, weather, vehicle care, greeting generation, and TTS audio playback.
@@ -47,6 +49,7 @@ class GreetingControllerImpl(
     private val weatherRepository: WeatherRepository,
     private val vehicleCareManager: VehicleCareManager,
     private val locationProvider: DeviceLocationProvider? = null,
+    private val locationResolver: WeatherLocationResolver? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 ) : GreetingController {
 
@@ -116,19 +119,15 @@ class GreetingControllerImpl(
         val weatherInfo: WeatherInfo? = if (settings.includeWeatherInGreeting) {
             try {
                 withTimeoutOrNull(2000L) {
-                    val location = if (settings.autoDetectLocation && locationProvider?.hasLocationPermission() == true) {
-                        locationProvider.getCurrentLocation()
+                    val resolver = locationResolver ?: WeatherLocationResolverImpl(locationProvider)
+                    val resolved = resolver.resolveLocation(settings)
+                    if (resolved.isAvailable) {
+                        weatherRepository.getCurrentWeather(
+                            cityName = resolved.displayName ?: "",
+                            latitude = resolved.latitude,
+                            longitude = resolved.longitude
+                        )
                     } else null
-
-                    val queryCity = location?.cityName ?: settings.weatherCityName
-                    val queryLat = location?.latitude ?: settings.weatherLatitude
-                    val queryLon = location?.longitude ?: settings.weatherLongitude
-
-                    weatherRepository.getCurrentWeather(
-                        cityName = queryCity,
-                        latitude = queryLat,
-                        longitude = queryLon
-                    )
                 }
             } catch (e: Exception) {
                 AppLogger.w(AppLogger.Tag.GREETING, "Weather fetch timed out or failed: ${e.message}")
@@ -213,19 +212,15 @@ class GreetingControllerImpl(
         val weatherInfo: WeatherInfo? = if (settings.includeWeatherInGreeting) {
             try {
                 withTimeoutOrNull(2000L) {
-                    val location = if (settings.autoDetectLocation && locationProvider?.hasLocationPermission() == true) {
-                        locationProvider.getCurrentLocation()
+                    val resolver = locationResolver ?: WeatherLocationResolverImpl(locationProvider)
+                    val resolved = resolver.resolveLocation(settings)
+                    if (resolved.isAvailable) {
+                        weatherRepository.getCurrentWeather(
+                            cityName = resolved.displayName ?: "",
+                            latitude = resolved.latitude,
+                            longitude = resolved.longitude
+                        )
                     } else null
-
-                    val queryCity = location?.cityName ?: settings.weatherCityName
-                    val queryLat = location?.latitude ?: settings.weatherLatitude
-                    val queryLon = location?.longitude ?: settings.weatherLongitude
-
-                    weatherRepository.getCurrentWeather(
-                        cityName = queryCity,
-                        latitude = queryLat,
-                        longitude = queryLon
-                    )
                 }
             } catch (e: Exception) {
                 null

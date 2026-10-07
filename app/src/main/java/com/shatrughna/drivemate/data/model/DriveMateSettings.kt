@@ -1,7 +1,7 @@
 package com.shatrughna.drivemate.data.model
 
 /**
- * Persisted application settings for DriveMate (V2).
+ * Persisted application settings for DriveMate (Production Ready).
  */
 data class DriveMateSettings(
     val driverName: String = "Shatrughna",
@@ -17,15 +17,15 @@ data class DriveMateSettings(
     val voiceName: String? = null,
     val autoMonitorBluetooth: Boolean = true,
     val targetBluetoothName: String = "Tata Nexon",
-    // V2 Features
+    // Dynamic Location & Weather
     val includeWeatherInGreeting: Boolean = true,
     val autoDetectLocation: Boolean = true,
-    val weatherCityName: String = "Pune",
-    val weatherLatitude: Double = 18.5204,
-    val weatherLongitude: Double = 73.8567,
+    val weatherCityName: String = "",
+    val weatherLatitude: Double = 0.0,
+    val weatherLongitude: Double = 0.0,
     val odometerKm: Int = 12500,
     val nextServiceKm: Int = 15000,
-    val fuelReminderEnabled: Boolean = true,
+    val fuelReminderEnabled: Boolean = false,
     val homeAddress: String = "Home",
     val officeAddress: String = "Office",
     // Smart Companion & Safety Features
@@ -35,7 +35,11 @@ data class DriveMateSettings(
     val lastParkedTimestampMillis: Long? = null,
     val driverFatigueAlertEnabled: Boolean = true,
     val averageMileageKmpl: Float = 16.5f,
-    val preferredMusicApp: String = "Spotify"
+    val preferredMusicApp: String = "Spotify",
+    // Hands-Free Voice Assistant & Wake Word Settings
+    val voiceAssistantEnabled: Boolean = true,
+    val heyDriveMateEnabled: Boolean = true,
+    val wakeWordSensitivity: Float = 0.5f
 ) {
     val fullVehicleName: String
         get() = "$vehicleBrand $vehicleModel $vehicleVariant".trim()

@@ -12,6 +12,7 @@ import java.time.LocalTime
 interface DestinationManager {
     fun getSuggestedDestinations(settings: DriveMateSettings): List<Destination>
     fun launchNavigation(context: Context, destination: Destination): Boolean
+    fun launchNavigationQuery(context: Context, destinationQuery: String): Boolean
 }
 
 class DestinationManagerImpl : DestinationManager {
@@ -44,8 +45,12 @@ class DestinationManagerImpl : DestinationManager {
     }
 
     override fun launchNavigation(context: Context, destination: Destination): Boolean {
+        return launchNavigationQuery(context, destination.searchQueryOrAddress)
+    }
+
+    override fun launchNavigationQuery(context: Context, destinationQuery: String): Boolean {
         try {
-            val query = Uri.encode(destination.searchQueryOrAddress)
+            val query = Uri.encode(destinationQuery)
             val gmmIntentUri = Uri.parse("google.navigation:q=$query")
             val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri).apply {
                 setPackage("com.google.android.apps.maps")
@@ -54,10 +59,9 @@ class DestinationManagerImpl : DestinationManager {
 
             if (mapIntent.resolveActivity(context.packageManager) != null) {
                 context.startActivity(mapIntent)
-                AppLogger.i(AppLogger.Tag.APP, "Launched Google Navigation for ${destination.title}")
+                AppLogger.i(AppLogger.Tag.APP, "Launched Google Navigation for $destinationQuery")
                 return true
             } else {
-                // Fall back to generic geo intent
                 val geoIntent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$query")).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
@@ -65,7 +69,7 @@ class DestinationManagerImpl : DestinationManager {
                 return true
             }
         } catch (e: Exception) {
-            AppLogger.e(AppLogger.Tag.APP, "Failed to launch navigation", e)
+            AppLogger.e(AppLogger.Tag.APP, "Failed to launch navigation for $destinationQuery", e)
             return false
         }
     }

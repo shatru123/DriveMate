@@ -28,7 +28,8 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * Tracks active drive duration, real-time GPS breadcrumb route, and commits completed trips to daily statistics.
+ * Tracks active drive duration, real-time verified GPS breadcrumb route, and commits completed trips.
+ * Strict data honesty: Never fabricates distance or movement when GPS is unavailable.
  */
 interface TripTracker {
     val tripStats: StateFlow<TripStats>
@@ -60,6 +61,8 @@ class TripTrackerImpl(
     private var activeGpsJob: Job? = null
     private var isStarted = false
     private var sessionStartTimeMillis: Long = 0L
+    private var startLocationResolvedName: String? = null
+    private var fatigueAlertTriggered = false
 
     override val tripStats: StateFlow<TripStats> = combine(
         preferencesRepository.tripStatsFlow,
@@ -100,15 +103,27 @@ class TripTrackerImpl(
     }
 
     override fun simulateDistanceTick(additionalKm: Float) {
-        _activeTripDistanceKm.value += additionalKm
+        if (additionalKm > 0f) {
+            _activeTripDistanceKm.value += additionalKm
+        }
     }
 
     private fun onSessionStarted() {
-        AppLogger.i(AppLogger.Tag.SESSION, "TripTracker: Active driving session started. Beginning trip timer and route tracking.")
+        AppLogger.i(AppLogger.Tag.SESSION, "TripTracker: Active driving session started. Beginning verified trip tracking.")
         _activeTripDurationSeconds.value = 0L
         _activeTripDistanceKm.value = 0.0f
         _activeRoutePoints.value = emptyList()
         sessionStartTimeMillis = System.currentTimeMillis()
+        startLocationResolvedName = null
+        fatigueAlertTriggered = false
+
+        // Resolve initial starting location honestly
+        scope.launch {
+            if (locationProvider != null && locationProvider.hasLocationPermission()) {
+                val loc = locationProvider.getCurrentLocation()
+                startLocationResolvedName = loc?.cityName
+            }
+        }
 
         activeTickerJob?.cancel()
         activeTickerJob = scope.launch {
@@ -118,15 +133,14 @@ class TripTrackerImpl(
                 seconds += 1
                 _activeTripDurationSeconds.value = seconds
 
-                // If GPS is not recording points, accumulate fallback distance (approx 36 km/h)
-                if (_activeRoutePoints.value.size < 2) {
-                    _activeTripDistanceKm.value = (seconds * 0.01f)
-                }
+                // ZERO FABRICATED DISTANCE: Distance strictly derives from verified GPS points or manual simulation.
 
-                // Check 2-hour continuous driving fatigue alert (7200s)
-                if (seconds == 7200L) {
+                // Check 2-hour continuous driving fatigue alert (7200s), fired exactly once per session
+                if (seconds >= 7200L && !fatigueAlertTriggered) {
+                    fatigueAlertTriggered = true
                     val settings = preferencesRepository.settingsFlow.first()
-                    if (settings.driverFatigueAlertEnabled) {
+                    if (settings.driverFatigueAlertEnabled && sessionManager.isSessionActive.value) {
+                        AppLogger.i(AppLogger.Tag.SESSION, "Triggering 2-hour driver fatigue alert.")
                         ttsManager?.speak("Driver fatigue warning: You have been driving for two continuous hours. Please consider pulling over for a quick rest.")
                     }
                 }
@@ -159,7 +173,16 @@ class TripTrackerImpl(
             val timeDiffSec = ((System.currentTimeMillis() - lastPoint.timestampMillis) / 1000f).coerceAtLeast(1f)
             calculatedSpeed = ((distMeters / timeDiffSec) * 3.6).toFloat() // m/s to km/h
 
-            // Only add point if moved more than 5 meters (reduces GPS noise while stopped at red lights)
+            // Reject impossible GPS jumps (speed > 160 km/h) caused by multipath jitter or cell tower jump
+            if (calculatedSpeed > 160.0f) {
+                AppLogger.w(
+                    AppLogger.Tag.SESSION,
+                    "TripTracker: Rejecting impossible GPS jump: ${distMeters}m in ${timeDiffSec}s (${calculatedSpeed} km/h)"
+                )
+                return
+            }
+
+            // Only add point if moved more than 5 meters (filters stationary noise at traffic signals)
             if (distMeters >= 5.0) {
                 val newDistKm = _activeTripDistanceKm.value + (distMeters / 1000f).toFloat()
                 _activeTripDistanceKm.value = newDistKm
@@ -174,7 +197,7 @@ class TripTrackerImpl(
                 _activeRoutePoints.value = currentPoints
             }
         } else {
-            // First point
+            // First verified GPS point
             currentPoints.add(
                 RoutePoint(
                     latitude = location.latitude,
@@ -202,36 +225,47 @@ class TripTrackerImpl(
             val durationMinutes = (durationSecs / 60).coerceAtLeast(1L)
             val settings = preferencesRepository.settingsFlow.first()
 
-            // Resolve end city/location and parking spot
             val endPoint = points.lastOrNull()
-            val startPoint = points.firstOrNull()
 
-            var parkedAddress = settings.weatherCityName
+            // Resolve parked address honestly: only save if real location was acquired
+            var parkedAddress: String? = null
+            var parkedLat: Double? = null
+            var parkedLon: Double? = null
+
             if (locationProvider != null && locationProvider.hasLocationPermission()) {
                 val freshLoc = locationProvider.getCurrentLocation()
-                if (freshLoc?.cityName != null) {
-                    parkedAddress = freshLoc.cityName
-                }
                 if (freshLoc != null) {
-                    preferencesRepository.updateLastParkedLocation(
-                        lat = freshLoc.latitude,
-                        lon = freshLoc.longitude,
-                        address = parkedAddress
-                    )
+                    parkedLat = freshLoc.latitude
+                    parkedLon = freshLoc.longitude
+                    parkedAddress = freshLoc.cityName ?: "${String.format("%.4f", freshLoc.latitude)}, ${String.format("%.4f", freshLoc.longitude)}"
                 }
-            } else if (endPoint != null) {
+            }
+
+            if (parkedLat == null && endPoint != null) {
+                parkedLat = endPoint.latitude
+                parkedLon = endPoint.longitude
+                parkedAddress = "${String.format("%.4f", endPoint.latitude)}, ${String.format("%.4f", endPoint.longitude)}"
+            }
+
+            // Only persist parking location if REAL coordinates exist (zero fake Pune saving)
+            if (parkedLat != null && parkedLon != null) {
                 preferencesRepository.updateLastParkedLocation(
-                    lat = endPoint.latitude,
-                    lon = endPoint.longitude,
-                    address = parkedAddress
+                    lat = parkedLat,
+                    lon = parkedLon,
+                    address = parkedAddress ?: "Parked Location"
                 )
             }
 
             val hours = (durationSecs / 3600f).coerceAtLeast(0.01f)
             val avgSpeed = (distanceKm / hours).coerceAtMost(160f)
-            val maxSpeed = points.maxOfOrNull { it.speedKmh } ?: (avgSpeed * 1.3f)
-            val ecoScore = (95 - (maxSpeed / 20f).toInt()).coerceIn(75, 98)
+            val maxSpeed = points.maxOfOrNull { it.speedKmh } ?: avgSpeed
+            val ecoScore = if (distanceKm > 0.1f) {
+                (95 - (maxSpeed / 20f).toInt()).coerceIn(75, 98)
+            } else 90
             val fuelUsed = distanceKm / settings.averageMileageKmpl
+
+            val resolvedStart = startLocationResolvedName ?: "Location unavailable"
+            val resolvedEnd = parkedAddress ?: "Location unavailable"
 
             val report = TripReport(
                 startTimeMillis = sessionStartTimeMillis,
@@ -241,8 +275,8 @@ class TripTrackerImpl(
                 avgSpeedKmh = avgSpeed,
                 maxSpeedKmh = maxSpeed,
                 ecoScore = ecoScore,
-                startLocationName = settings.weatherCityName,
-                endLocationName = parkedAddress,
+                startLocationName = resolvedStart,
+                endLocationName = resolvedEnd,
                 routePoints = points,
                 fuelConsumedLiters = fuelUsed
             )
@@ -253,12 +287,12 @@ class TripTrackerImpl(
 
             AppLogger.i(
                 AppLogger.Tag.SESSION,
-                "TripTracker: Trip completed. Distance: ${report.formattedDistance}, Duration: ${report.formattedDuration}, Parked: $parkedAddress"
+                "TripTracker: Trip completed. Distance: ${report.formattedDistance}, Duration: ${report.formattedDuration}, Parked: ${parkedAddress ?: "Unavailable"}"
             )
 
-            // Trigger Post-Drive Voice Audio Debrief via TTS
-            if (ttsManager != null && durationSecs >= 15L) {
-                val debriefSpeech = "Trip complete, ${settings.driverName}! You drove ${report.formattedDistance} in ${report.durationMinutes} minutes at an average speed of ${report.formattedAvgSpeed}. Your Tata Nexon is parked safely in $parkedAddress. Have a wonderful day!"
+            // Trigger Post-Drive Voice Audio Debrief via TTS (only for meaningful drives)
+            if (ttsManager != null && durationSecs >= 15L && distanceKm > 0.05f) {
+                val debriefSpeech = "Trip complete, ${settings.driverName}! You drove ${report.formattedDistance} in ${report.durationMinutes} minutes. Have a wonderful day!"
                 ttsManager.speak(debriefSpeech)
             }
         } else {
@@ -268,6 +302,7 @@ class TripTrackerImpl(
         _activeTripDurationSeconds.value = 0L
         _activeTripDistanceKm.value = 0.0f
         _activeRoutePoints.value = emptyList()
+        fatigueAlertTriggered = false
     }
 
     private fun calculateDistanceMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {

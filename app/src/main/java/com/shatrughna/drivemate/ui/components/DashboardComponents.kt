@@ -212,8 +212,14 @@ fun WeatherSummaryCard(
                             fontWeight = FontWeight.Medium
                         )
                     }
+                    val weatherCitySubtitle = if (weather.isAvailable) {
+                        val city = if (weather.cityName.isNotBlank()) weather.cityName else "Current Location"
+                        "$city • Live Weather"
+                    } else {
+                        "Weather unavailable"
+                    }
                     Text(
-                        text = "${weather.cityName} • Live Weather",
+                        text = weatherCitySubtitle,
                         style = MaterialTheme.typography.labelSmall,
                         color = TextSecondary
                     )

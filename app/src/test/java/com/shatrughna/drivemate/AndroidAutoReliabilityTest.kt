@@ -174,6 +174,9 @@ class AndroidAutoReliabilityTest {
         override suspend fun updateLastParkedLocation(lat: Double, lon: Double, address: String?) {}
         override suspend fun updateDriverFatigueAlert(enabled: Boolean) {}
         override suspend fun updatePreferredMusicApp(app: String) {}
+        override suspend fun updateVoiceAssistantEnabled(enabled: Boolean) {}
+        override suspend fun updateHeyDriveMateEnabled(enabled: Boolean) {}
+        override suspend fun updateWakeWordSensitivity(sensitivity: Float) {}
         override suspend fun resetToDefaults() {}
     }
 
@@ -296,6 +299,7 @@ class AndroidAutoReliabilityTest {
     @Test
     fun testScenario4_disconnectDuringGreetingPreparation_cancelsGreeting() = runTest(testDispatcher) {
         // Weather API simulates a 1000ms delay during prep
+        fakeLocationProvider.mockLocation = DeviceLocation(18.5204, 73.8567, "Pune")
         fakeWeatherRepository.weatherDelayMs = 1000L
 
         val aaState = CarConnectionState.Connected(
@@ -465,6 +469,7 @@ class AndroidAutoReliabilityTest {
     @Test
     fun testScenario12_weatherTimeout_proceedsWithBasicGreeting() = runTest(testDispatcher) {
         // Weather takes 5 seconds (exceeding 2s timeout)
+        fakeLocationProvider.mockLocation = DeviceLocation(18.5204, 73.8567, "Pune")
         fakeWeatherRepository.weatherDelayMs = 5000L
 
         val aaState = CarConnectionState.Connected(
@@ -536,7 +541,8 @@ class AndroidAutoReliabilityTest {
     @Test
     fun testScenario15_locationPermissionDenied_fallsBackToSettingsCity() = runTest(testDispatcher) {
         fakePreferencesRepository.settings.value = DriveMateSettings(
-            greetingStyle = GreetingStyle.DETAILED
+            greetingStyle = GreetingStyle.DETAILED,
+            weatherCityName = "Pune"
         )
         fakeLocationProvider.hasPermission = false
         fakeLocationProvider.mockLocation = null

@@ -14,6 +14,8 @@ import com.shatrughna.drivemate.data.preferences.DriveMatePreferencesRepository
 import com.shatrughna.drivemate.destination.DestinationManager
 import com.shatrughna.drivemate.driving.TripTracker
 import com.shatrughna.drivemate.greeting.GreetingTtsManager
+import com.shatrughna.drivemate.location.WeatherLocationResolver
+import com.shatrughna.drivemate.location.WeatherLocationResolverImpl
 import com.shatrughna.drivemate.util.AppLogger
 import com.shatrughna.drivemate.weather.WeatherRepository
 import kotlinx.coroutines.CoroutineScope
@@ -40,6 +42,7 @@ interface VoiceAssistantManager {
     fun startListening()
     fun stopListening()
     fun processTextCommand(commandText: String)
+    fun release()
 }
 
 class VoiceAssistantManagerImpl(
@@ -50,6 +53,7 @@ class VoiceAssistantManagerImpl(
     private val destinationManager: DestinationManager,
     private val tripTracker: TripTracker,
     private val carConnectionManager: CarConnectionManager,
+    private val locationResolver: WeatherLocationResolver? = null,
     private val parser: VoiceCommandParser = VoiceCommandParser(),
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 ) : VoiceAssistantManager {
@@ -75,6 +79,13 @@ class VoiceAssistantManagerImpl(
 
     override fun startListening() {
         scope.launch {
+            val settings = preferencesRepository.settingsFlow.first()
+            if (!settings.voiceAssistantEnabled) {
+                AppLogger.d(AppLogger.Tag.APP, "Voice Assistant is disabled in settings.")
+                _state.value = VoiceAssistantState.Error("Voice Assistant is disabled")
+                return@launch
+            }
+
             val recognizer = getOrCreateRecognizer() ?: return@launch
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -93,10 +104,25 @@ class VoiceAssistantManagerImpl(
     }
 
     override fun stopListening() {
-        speechRecognizer?.stopListening()
+        try {
+            speechRecognizer?.stopListening()
+        } catch (e: Exception) {
+            AppLogger.w(AppLogger.Tag.APP, "Error stopping SpeechRecognizer: ${e.message}")
+        }
         if (_state.value is VoiceAssistantState.Listening) {
             _state.value = VoiceAssistantState.Idle
         }
+    }
+
+    override fun release() {
+        stopListening()
+        try {
+            speechRecognizer?.destroy()
+        } catch (e: Exception) {
+            AppLogger.w(AppLogger.Tag.APP, "Error destroying SpeechRecognizer: ${e.message}")
+        }
+        speechRecognizer = null
+        _state.value = VoiceAssistantState.Idle
     }
 
     override fun processTextCommand(commandText: String) {
@@ -168,23 +194,29 @@ class VoiceAssistantManagerImpl(
             is VoiceCommand.Navigate -> {
                 val speech = "Starting navigation to ${command.destination}."
                 respondWithVoice(speech)
-                dispatchNavigationIntent(command.destination)
+                destinationManager.launchNavigationQuery(context, command.destination)
             }
 
             VoiceCommand.CheckWeather -> {
-                val weather = try {
-                    weatherRepository.getCurrentWeather(
-                        cityName = settings.weatherCityName,
-                        latitude = settings.weatherLatitude,
-                        longitude = settings.weatherLongitude
-                    )
-                } catch (e: Exception) {
-                    null
-                }
-                val speech = if (weather != null) {
+                val resolvedLoc = locationResolver?.resolveLocation(settings)
+                    ?: WeatherLocationResolverImpl(null).resolveLocation(settings)
+
+                val weather = if (resolvedLoc.isAvailable) {
+                    try {
+                        weatherRepository.getCurrentWeather(
+                            cityName = resolvedLoc.displayName ?: "",
+                            latitude = resolvedLoc.latitude,
+                            longitude = resolvedLoc.longitude
+                        )
+                    } catch (e: Exception) {
+                        null
+                    }
+                } else null
+
+                val speech = if (weather != null && weather.isAvailable) {
                     "It is currently ${weather.displayTemperature} and ${weather.conditionText.lowercase()} in ${weather.cityName}."
                 } else {
-                    "Unable to retrieve current weather right now."
+                    "Weather is currently unavailable."
                 }
                 respondWithVoice(speech)
             }
@@ -265,7 +297,6 @@ class VoiceAssistantManagerImpl(
             if (intent.resolveActivity(context.packageManager) != null) {
                 context.startActivity(intent)
             } else {
-                // Fallback to generic media or Spotify search uri
                 val uriIntent = Intent(Intent.ACTION_VIEW, Uri.parse("spotify:search:${Uri.encode(query)}")).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
@@ -280,28 +311,6 @@ class VoiceAssistantManagerImpl(
             }
         } catch (e: Exception) {
             AppLogger.e(AppLogger.Tag.APP, "Failed to dispatch music intent: ${e.message}", e)
-        }
-    }
-
-    private fun dispatchNavigationIntent(destination: String) {
-        try {
-            val query = Uri.encode(destination)
-            val gmmIntentUri = Uri.parse("google.navigation:q=$query")
-            val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri).apply {
-                setPackage("com.google.android.apps.maps")
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-
-            if (mapIntent.resolveActivity(context.packageManager) != null) {
-                context.startActivity(mapIntent)
-            } else {
-                val geoIntent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$query")).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                context.startActivity(geoIntent)
-            }
-        } catch (e: Exception) {
-            AppLogger.e(AppLogger.Tag.APP, "Failed to launch navigation: ${e.message}", e)
         }
     }
 

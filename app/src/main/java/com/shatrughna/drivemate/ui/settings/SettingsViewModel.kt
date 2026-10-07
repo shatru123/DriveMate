@@ -144,6 +144,18 @@ class SettingsViewModel(
         }
     }
 
+    fun updateVoiceAssistantEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.updateVoiceAssistantEnabled(enabled)
+        }
+    }
+
+    fun updateHeyDriveMateEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.updateHeyDriveMateEnabled(enabled)
+        }
+    }
+
     fun previewGreeting() {
         viewModelScope.launch {
             greetingController.previewGreeting(settings.value)

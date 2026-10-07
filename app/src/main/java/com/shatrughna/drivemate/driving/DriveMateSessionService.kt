@@ -89,11 +89,21 @@ class DriveMateSessionService : Service() {
         val app = application as? DriveMateApplication
         if (app != null) {
             serviceScope.launch {
+                app.sessionManager.isSessionActive.collectLatest { isActive ->
+                    if (!isActive) {
+                        AppLogger.i(AppLogger.Tag.SESSION, "DriveMateSessionService: Active driving session ended, stopping foreground service.")
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        stopSelf()
+                    }
+                }
+            }
+
+            serviceScope.launch {
                 app.carConnectionManager.connectionState.collectLatest { state ->
                     val notificationText = when (state) {
                         is CarConnectionState.Connected -> "Connected to ${state.deviceOrVehicleName}"
-                        is CarConnectionState.Disconnected -> "Searching for Tata Nexon connection..."
-                        CarConnectionState.Unknown -> "Initializing companion..."
+                        is CarConnectionState.Disconnected -> "Driving session completed"
+                        CarConnectionState.Unknown -> "DriveMate Active Companion"
                     }
                     val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                     notificationManager.notify(NOTIFICATION_ID, buildNotification(notificationText))

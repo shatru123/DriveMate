@@ -430,6 +430,58 @@ fun SettingsScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
+                                text = "Voice Assistant",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Enable hands-free voice commands and queries",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                        }
+                        Switch(
+                            checked = settings.voiceAssistantEnabled,
+                            onCheckedChange = viewModel::updateVoiceAssistantEnabled
+                        )
+                    }
+
+                    HorizontalDivider(color = DarkBorder)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Hey DriveMate Wake Word",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Say \"Hey DriveMate\" to activate assistant while driving",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                        }
+                        Switch(
+                            checked = settings.heyDriveMateEnabled,
+                            onCheckedChange = viewModel::updateHeyDriveMateEnabled
+                        )
+                    }
+
+                    HorizontalDivider(color = DarkBorder)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
                                 text = "Driver Fatigue Alert",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,

@@ -1,6 +1,8 @@
 package com.shatrughna.drivemate.ui.home
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -9,17 +11,26 @@ import com.shatrughna.drivemate.car.CarConnectionState
 import com.shatrughna.drivemate.care.VehicleCareManager
 import com.shatrughna.drivemate.data.model.Destination
 import com.shatrughna.drivemate.data.model.DriveMateSettings
+import com.shatrughna.drivemate.data.model.RoutePoint
+import com.shatrughna.drivemate.data.model.TripReport
 import com.shatrughna.drivemate.data.model.TripStats
 import com.shatrughna.drivemate.data.model.VehicleCareInfo
 import com.shatrughna.drivemate.data.model.WeatherInfo
 import com.shatrughna.drivemate.data.preferences.DriveMatePreferencesRepository
 import com.shatrughna.drivemate.destination.DestinationManager
 import com.shatrughna.drivemate.driving.DrivingSessionManager
+import com.shatrughna.drivemate.driving.TripHistoryRepository
 import com.shatrughna.drivemate.driving.TripTracker
 import com.shatrughna.drivemate.greeting.GreetingController
 import com.shatrughna.drivemate.greeting.GreetingGenerator
-import com.shatrughna.drivemate.util.AppLogger
 import com.shatrughna.drivemate.location.DeviceLocationProvider
+import com.shatrughna.drivemate.location.WeatherLocationResolver
+import com.shatrughna.drivemate.location.WeatherLocationResolverImpl
+import com.shatrughna.drivemate.util.AppLogger
+import com.shatrughna.drivemate.voice.VoiceAssistantManager
+import com.shatrughna.drivemate.voice.VoiceAssistantState
+import com.shatrughna.drivemate.voice.wakeword.WakeWordManager
+import com.shatrughna.drivemate.voice.wakeword.WakeWordState
 import com.shatrughna.drivemate.weather.WeatherRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -28,14 +39,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-
-import com.shatrughna.drivemate.data.model.RoutePoint
-import com.shatrughna.drivemate.data.model.TripReport
-import com.shatrughna.drivemate.driving.TripHistoryRepository
-import com.shatrughna.drivemate.voice.VoiceAssistantManager
-import com.shatrughna.drivemate.voice.VoiceAssistantState
-import android.net.Uri
-import android.content.Intent
 
 class MainViewModel(
     private val preferencesRepository: DriveMatePreferencesRepository,
@@ -49,7 +52,9 @@ class MainViewModel(
     private val tripTracker: TripTracker,
     private val locationProvider: DeviceLocationProvider? = null,
     private val voiceAssistantManager: VoiceAssistantManager? = null,
-    private val tripHistoryRepository: TripHistoryRepository? = null
+    private val tripHistoryRepository: TripHistoryRepository? = null,
+    private val locationResolver: WeatherLocationResolver? = null,
+    private val wakeWordManager: WakeWordManager? = null
 ) : ViewModel() {
 
     val settings: StateFlow<DriveMateSettings> = preferencesRepository.settingsFlow
@@ -80,10 +85,13 @@ class MainViewModel(
     val voiceAssistantState: StateFlow<VoiceAssistantState> = voiceAssistantManager?.state
         ?: MutableStateFlow(VoiceAssistantState.Idle)
 
+    val wakeWordState: StateFlow<WakeWordState> = wakeWordManager?.state
+        ?: MutableStateFlow(WakeWordState.STOPPED)
+
     private val _isSimulating = MutableStateFlow(false)
     val isSimulating: StateFlow<Boolean> = _isSimulating.asStateFlow()
 
-    private val _weather = MutableStateFlow(WeatherInfo())
+    private val _weather = MutableStateFlow(WeatherInfo.unavailable())
     val weather: StateFlow<WeatherInfo> = _weather.asStateFlow()
 
     val vehicleCareInfo: StateFlow<VehicleCareInfo> = combine(settings) { (currentSettings) ->
@@ -111,6 +119,7 @@ class MainViewModel(
         if (lastSpoken.isNotBlank()) {
             lastSpoken
         } else {
+            val weatherForGreeting = if (currentSettings.includeWeatherInGreeting && currentWeather.isAvailable) currentWeather else null
             greetingGenerator.generateGreeting(
                 driverName = currentSettings.driverName,
                 vehicleBrand = currentSettings.vehicleBrand,
@@ -118,7 +127,7 @@ class MainViewModel(
                 vehicleVariant = currentSettings.vehicleVariant,
                 style = currentSettings.greetingStyle,
                 customTemplate = currentSettings.customGreetingTemplate,
-                weatherInfo = if (currentSettings.includeWeatherInGreeting) currentWeather else null,
+                weatherInfo = weatherForGreeting,
                 careReminder = vehicleCareManager.generateCareReminderPhrase(currentSettings)
             )
         }
@@ -139,20 +148,19 @@ class MainViewModel(
     fun refreshWeather(forceRefresh: Boolean = true) {
         viewModelScope.launch {
             val currentSettings = settings.value
-            val location = if (currentSettings.autoDetectLocation && locationProvider?.hasLocationPermission() == true) {
-                locationProvider.getCurrentLocation()
-            } else null
+            val resolver = locationResolver ?: WeatherLocationResolverImpl(locationProvider)
+            val resolvedLoc = resolver.resolveLocation(currentSettings)
 
-            val queryCity = location?.cityName ?: currentSettings.weatherCityName
-            val queryLat = location?.latitude ?: currentSettings.weatherLatitude
-            val queryLon = location?.longitude ?: currentSettings.weatherLongitude
-
-            _weather.value = weatherRepository.getCurrentWeather(
-                cityName = queryCity,
-                latitude = queryLat,
-                longitude = queryLon,
-                forceRefresh = forceRefresh
-            )
+            if (resolvedLoc.isAvailable) {
+                _weather.value = weatherRepository.getCurrentWeather(
+                    cityName = resolvedLoc.displayName ?: "",
+                    latitude = resolvedLoc.latitude,
+                    longitude = resolvedLoc.longitude,
+                    forceRefresh = forceRefresh
+                )
+            } else {
+                _weather.value = WeatherInfo.unavailable()
+            }
         }
     }
 
@@ -163,6 +171,23 @@ class MainViewModel(
     fun toggleGreetingEnabled(enabled: Boolean) {
         viewModelScope.launch {
             preferencesRepository.updateGreetingEnabled(enabled)
+        }
+    }
+
+    fun toggleHeyDriveMate(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.updateHeyDriveMateEnabled(enabled)
+            if (enabled) {
+                wakeWordManager?.start()
+            } else {
+                wakeWordManager?.stop()
+            }
+        }
+    }
+
+    fun toggleVoiceAssistant(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.updateVoiceAssistantEnabled(enabled)
         }
     }
 
@@ -229,7 +254,9 @@ class MainViewModel(
         private val tripTracker: TripTracker,
         private val locationProvider: DeviceLocationProvider? = null,
         private val voiceAssistantManager: VoiceAssistantManager? = null,
-        private val tripHistoryRepository: TripHistoryRepository? = null
+        private val tripHistoryRepository: TripHistoryRepository? = null,
+        private val locationResolver: WeatherLocationResolver? = null,
+        private val wakeWordManager: WakeWordManager? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -245,7 +272,9 @@ class MainViewModel(
                 tripTracker,
                 locationProvider,
                 voiceAssistantManager,
-                tripHistoryRepository
+                tripHistoryRepository,
+                locationResolver,
+                wakeWordManager
             ) as T
         }
     }

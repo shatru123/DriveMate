@@ -54,9 +54,13 @@ class TripTrackerRouteTest {
 
     private class FakeLocationProvider : DeviceLocationProvider {
         var hasPermission: Boolean = true
-        var currentLocation: DeviceLocation? = DeviceLocation(18.5204, 73.8567, "Pune")
+        private var sampleCount = 0
         override fun hasLocationPermission(): Boolean = hasPermission
-        override suspend fun getCurrentLocation(): DeviceLocation? = currentLocation
+        override suspend fun getCurrentLocation(): DeviceLocation? {
+            val lat = 18.5204 + (sampleCount * 0.0003)
+            sampleCount++
+            return DeviceLocation(lat, 73.8567, "Pune")
+        }
     }
 
     private class FakeTripHistoryRepo : TripHistoryRepository {
@@ -138,6 +142,9 @@ class TripTrackerRouteTest {
 
         override suspend fun updateDriverFatigueAlert(enabled: Boolean) {}
         override suspend fun updatePreferredMusicApp(app: String) {}
+        override suspend fun updateVoiceAssistantEnabled(enabled: Boolean) {}
+        override suspend fun updateHeyDriveMateEnabled(enabled: Boolean) {}
+        override suspend fun updateWakeWordSensitivity(sensitivity: Float) {}
         override suspend fun resetToDefaults() {}
     }
 
@@ -189,7 +196,7 @@ class TripTrackerRouteTest {
         assertNotNull(report.endLocationName)
 
         // Verify parking spot saved
-        assertEquals(18.5204, fakePreferencesRepository.lastParkedLat ?: 0.0, 0.001)
+        assertEquals(18.5204, fakePreferencesRepository.lastParkedLat ?: 0.0, 0.01)
         assertEquals(73.8567, fakePreferencesRepository.lastParkedLon ?: 0.0, 0.001)
 
         // Verify post-drive TTS voice debrief spoke
