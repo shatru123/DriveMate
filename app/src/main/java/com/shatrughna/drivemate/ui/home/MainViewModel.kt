@@ -29,6 +29,14 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+import com.shatrughna.drivemate.data.model.RoutePoint
+import com.shatrughna.drivemate.data.model.TripReport
+import com.shatrughna.drivemate.driving.TripHistoryRepository
+import com.shatrughna.drivemate.voice.VoiceAssistantManager
+import com.shatrughna.drivemate.voice.VoiceAssistantState
+import android.net.Uri
+import android.content.Intent
+
 class MainViewModel(
     private val preferencesRepository: DriveMatePreferencesRepository,
     private val carConnectionManager: CarConnectionManager,
@@ -39,7 +47,9 @@ class MainViewModel(
     private val vehicleCareManager: VehicleCareManager,
     private val destinationManager: DestinationManager,
     private val tripTracker: TripTracker,
-    private val locationProvider: DeviceLocationProvider? = null
+    private val locationProvider: DeviceLocationProvider? = null,
+    private val voiceAssistantManager: VoiceAssistantManager? = null,
+    private val tripHistoryRepository: TripHistoryRepository? = null
 ) : ViewModel() {
 
     val settings: StateFlow<DriveMateSettings> = preferencesRepository.settingsFlow
@@ -54,6 +64,21 @@ class MainViewModel(
     val hasGreetingPlayed: StateFlow<Boolean> = sessionManager.hasGreetingPlayed
     val isSpeaking: StateFlow<Boolean> = greetingController.isSpeaking
     val tripStats: StateFlow<TripStats> = tripTracker.tripStats
+    val activeRoutePoints: StateFlow<List<RoutePoint>> = tripTracker.activeRoutePoints
+
+    val latestTrip: StateFlow<TripReport?> = combine(
+        tripTracker.latestCompletedTrip,
+        tripHistoryRepository?.latestTrip ?: MutableStateFlow(null)
+    ) { fromTracker, fromRepo ->
+        fromTracker ?: fromRepo
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = null
+    )
+
+    val voiceAssistantState: StateFlow<VoiceAssistantState> = voiceAssistantManager?.state
+        ?: MutableStateFlow(VoiceAssistantState.Idle)
 
     private val _isSimulating = MutableStateFlow(false)
     val isSimulating: StateFlow<Boolean> = _isSimulating.asStateFlow()
@@ -157,6 +182,41 @@ class MainViewModel(
         carConnectionManager.setSimulatedConnection(enabled)
     }
 
+    fun startVoiceAssistant() {
+        voiceAssistantManager?.startListening()
+    }
+
+    fun stopVoiceAssistant() {
+        voiceAssistantManager?.stopListening()
+    }
+
+    fun processVoiceTextCommand(commandText: String) {
+        voiceAssistantManager?.processTextCommand(commandText)
+    }
+
+    fun navigateToParkedCar(context: Context) {
+        val s = settings.value
+        val lat = s.lastParkedLatitude ?: return
+        val lon = s.lastParkedLongitude ?: return
+        try {
+            val gmmIntentUri = Uri.parse("google.navigation:q=$lat,$lon&mode=w")
+            val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri).apply {
+                setPackage("com.google.android.apps.maps")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            if (mapIntent.resolveActivity(context.packageManager) != null) {
+                context.startActivity(mapIntent)
+            } else {
+                val geoIntent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:$lat,$lon?q=$lat,$lon(Parked Nexon)")).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(geoIntent)
+            }
+        } catch (e: Exception) {
+            AppLogger.e(AppLogger.Tag.APP, "Failed to launch walking navigation: ${e.message}", e)
+        }
+    }
+
     class Factory(
         private val preferencesRepository: DriveMatePreferencesRepository,
         private val carConnectionManager: CarConnectionManager,
@@ -167,7 +227,9 @@ class MainViewModel(
         private val vehicleCareManager: VehicleCareManager,
         private val destinationManager: DestinationManager,
         private val tripTracker: TripTracker,
-        private val locationProvider: DeviceLocationProvider? = null
+        private val locationProvider: DeviceLocationProvider? = null,
+        private val voiceAssistantManager: VoiceAssistantManager? = null,
+        private val tripHistoryRepository: TripHistoryRepository? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -181,7 +243,9 @@ class MainViewModel(
                 vehicleCareManager,
                 destinationManager,
                 tripTracker,
-                locationProvider
+                locationProvider,
+                voiceAssistantManager,
+                tripHistoryRepository
             ) as T
         }
     }

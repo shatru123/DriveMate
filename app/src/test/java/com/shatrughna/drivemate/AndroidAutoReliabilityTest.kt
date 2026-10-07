@@ -171,6 +171,9 @@ class AndroidAutoReliabilityTest {
         override suspend fun updateVehicleCare(odometerKm: Int, nextServiceKm: Int, fuelReminder: Boolean) {}
         override suspend fun updateFavoriteAddresses(home: String, office: String) {}
         override suspend fun recordCompletedTrip(distanceKm: Float, durationMinutes: Long) {}
+        override suspend fun updateLastParkedLocation(lat: Double, lon: Double, address: String?) {}
+        override suspend fun updateDriverFatigueAlert(enabled: Boolean) {}
+        override suspend fun updatePreferredMusicApp(app: String) {}
         override suspend fun resetToDefaults() {}
     }
 

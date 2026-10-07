@@ -49,6 +49,9 @@ interface DriveMatePreferencesRepository {
     suspend fun updateVehicleCare(odometerKm: Int, nextServiceKm: Int, fuelReminder: Boolean)
     suspend fun updateFavoriteAddresses(home: String, office: String)
     suspend fun recordCompletedTrip(distanceKm: Float, durationMinutes: Long)
+    suspend fun updateLastParkedLocation(lat: Double, lon: Double, address: String?)
+    suspend fun updateDriverFatigueAlert(enabled: Boolean)
+    suspend fun updatePreferredMusicApp(app: String)
     suspend fun resetToDefaults()
 }
 
@@ -82,6 +85,12 @@ class DriveMatePreferencesRepositoryImpl(
         val FUEL_REMINDER = booleanPreferencesKey("fuel_reminder_enabled")
         val HOME_ADDRESS = stringPreferencesKey("home_address")
         val OFFICE_ADDRESS = stringPreferencesKey("office_address")
+        val LAST_PARKED_LAT = doublePreferencesKey("last_parked_latitude")
+        val LAST_PARKED_LON = doublePreferencesKey("last_parked_longitude")
+        val LAST_PARKED_ADDRESS = stringPreferencesKey("last_parked_address")
+        val LAST_PARKED_TIMESTAMP = longPreferencesKey("last_parked_timestamp_millis")
+        val DRIVER_FATIGUE_ALERT = booleanPreferencesKey("driver_fatigue_alert_enabled")
+        val PREFERRED_MUSIC_APP = stringPreferencesKey("preferred_music_app")
 
         // Trip stats keys
         val TODAY_TRIPS = intPreferencesKey("today_trips_count")
@@ -124,7 +133,13 @@ class DriveMatePreferencesRepositoryImpl(
                 nextServiceKm = preferences[PreferencesKeys.NEXT_SERVICE_KM] ?: 15000,
                 fuelReminderEnabled = preferences[PreferencesKeys.FUEL_REMINDER] ?: true,
                 homeAddress = preferences[PreferencesKeys.HOME_ADDRESS] ?: "Home",
-                officeAddress = preferences[PreferencesKeys.OFFICE_ADDRESS] ?: "Office"
+                officeAddress = preferences[PreferencesKeys.OFFICE_ADDRESS] ?: "Office",
+                lastParkedLatitude = preferences[PreferencesKeys.LAST_PARKED_LAT],
+                lastParkedLongitude = preferences[PreferencesKeys.LAST_PARKED_LON],
+                lastParkedAddress = preferences[PreferencesKeys.LAST_PARKED_ADDRESS],
+                lastParkedTimestampMillis = preferences[PreferencesKeys.LAST_PARKED_TIMESTAMP],
+                driverFatigueAlertEnabled = preferences[PreferencesKeys.DRIVER_FATIGUE_ALERT] ?: true,
+                preferredMusicApp = preferences[PreferencesKeys.PREFERRED_MUSIC_APP] ?: "Spotify"
             )
         }
 
@@ -282,6 +297,31 @@ class DriveMatePreferencesRepositoryImpl(
             // Update odometer automatically with the driven distance
             val currentOdometer = preferences[PreferencesKeys.ODOMETER_KM] ?: 12500
             preferences[PreferencesKeys.ODOMETER_KM] = currentOdometer + distanceKm.toInt()
+        }
+    }
+
+    override suspend fun updateLastParkedLocation(lat: Double, lon: Double, address: String?) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.LAST_PARKED_LAT] = lat
+            preferences[PreferencesKeys.LAST_PARKED_LON] = lon
+            if (address != null) {
+                preferences[PreferencesKeys.LAST_PARKED_ADDRESS] = address
+            } else {
+                preferences.remove(PreferencesKeys.LAST_PARKED_ADDRESS)
+            }
+            preferences[PreferencesKeys.LAST_PARKED_TIMESTAMP] = System.currentTimeMillis()
+        }
+    }
+
+    override suspend fun updateDriverFatigueAlert(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.DRIVER_FATIGUE_ALERT] = enabled
+        }
+    }
+
+    override suspend fun updatePreferredMusicApp(app: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.PREFERRED_MUSIC_APP] = app
         }
     }
 

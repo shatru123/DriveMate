@@ -132,6 +132,18 @@ class SettingsViewModel(
         }
     }
 
+    fun updateDriverFatigueAlert(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.updateDriverFatigueAlert(enabled)
+        }
+    }
+
+    fun updatePreferredMusicApp(app: String) {
+        viewModelScope.launch {
+            preferencesRepository.updatePreferredMusicApp(app)
+        }
+    }
+
     fun previewGreeting() {
         viewModelScope.launch {
             greetingController.previewGreeting(settings.value)

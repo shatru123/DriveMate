@@ -27,8 +27,19 @@ data class DriveMateSettings(
     val nextServiceKm: Int = 15000,
     val fuelReminderEnabled: Boolean = true,
     val homeAddress: String = "Home",
-    val officeAddress: String = "Office"
+    val officeAddress: String = "Office",
+    // Smart Companion & Safety Features
+    val lastParkedLatitude: Double? = null,
+    val lastParkedLongitude: Double? = null,
+    val lastParkedAddress: String? = null,
+    val lastParkedTimestampMillis: Long? = null,
+    val driverFatigueAlertEnabled: Boolean = true,
+    val averageMileageKmpl: Float = 16.5f,
+    val preferredMusicApp: String = "Spotify"
 ) {
     val fullVehicleName: String
         get() = "$vehicleBrand $vehicleModel $vehicleVariant".trim()
+
+    val hasParkedLocation: Boolean
+        get() = lastParkedLatitude != null && lastParkedLongitude != null
 }

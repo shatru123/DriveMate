@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.shatrughna.drivemate.ui.components.ActiveTripTickerCard
 import com.shatrughna.drivemate.ui.components.ConnectionStatusCard
+import com.shatrughna.drivemate.ui.components.CreatorCard
 import com.shatrughna.drivemate.ui.components.DailyDrivingStatsCard
 import com.shatrughna.drivemate.ui.components.GreetingStatusCard
 import com.shatrughna.drivemate.ui.components.SmartDestinationRow
@@ -48,13 +49,24 @@ import com.shatrughna.drivemate.ui.components.WeatherSummaryCard
 import com.shatrughna.drivemate.ui.theme.DarkBackground
 import com.shatrughna.drivemate.ui.theme.NexonCyanPrimary
 import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.shatrughna.drivemate.ui.theme.NexonEmeraldAccent
 import com.shatrughna.drivemate.ui.theme.TextMuted
 import com.shatrughna.drivemate.ui.theme.TextPrimary
 import com.shatrughna.drivemate.ui.theme.TextSecondary
+import com.shatrughna.drivemate.ui.voice.VoiceAssistantSheet
+import com.shatrughna.drivemate.ui.trip.TripReportCard
+import com.shatrughna.drivemate.ui.parking.FindMyCarCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,6 +87,10 @@ fun DashboardScreen(
     val tripStats by viewModel.tripStats.collectAsStateWithLifecycle()
     val destinations by viewModel.suggestedDestinations.collectAsStateWithLifecycle()
     val careInfo by viewModel.vehicleCareInfo.collectAsStateWithLifecycle()
+    val voiceState by viewModel.voiceAssistantState.collectAsStateWithLifecycle()
+    val latestTrip by viewModel.latestTrip.collectAsStateWithLifecycle()
+
+    var showVoiceSheet by remember { mutableStateOf(false) }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -83,6 +99,14 @@ fun DashboardScreen(
                 permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (granted) {
             viewModel.refreshWeather(forceRefresh = true)
+        }
+    }
+
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            viewModel.startVoiceAssistant()
         }
     }
 
@@ -100,6 +124,31 @@ fun DashboardScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = DarkBackground,
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = {
+                    showVoiceSheet = true
+                    val hasMicPermission = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.RECORD_AUDIO
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (hasMicPermission) {
+                        viewModel.startVoiceAssistant()
+                    } else {
+                        audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                },
+                containerColor = Color(0xFF3B82F6),
+                contentColor = Color.White,
+                shape = CircleShape
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Mic,
+                    contentDescription = "DriveMate Voice Assistant",
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        },
         topBar = {
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -209,10 +258,49 @@ fun DashboardScreen(
             // 6. Today's drive live tracking card (V2)
             DailyDrivingStatsCard(tripStats = tripStats)
 
-            // 7. Vehicle Care & Service status card (V2)
+            // 7. Recent Completed Trip & Route Report
+            latestTrip?.let { trip ->
+                TripReportCard(tripReport = trip)
+            }
+
+            // 8. Find My Car (Parking Location)
+            if (settings.hasParkedLocation) {
+                FindMyCarCard(
+                    settings = settings,
+                    onNavigateToCar = { viewModel.navigateToParkedCar(context) }
+                )
+            }
+
+            // 9. Vehicle Care & Service status card (V2)
             VehicleCareSummaryCard(careInfo = careInfo)
 
-            Spacer(modifier = Modifier.height(24.dp))
+            // 10. Creator Profile & Contact
+            CreatorCard()
+
+            Spacer(modifier = Modifier.height(80.dp))
+        }
+
+        if (showVoiceSheet) {
+            VoiceAssistantSheet(
+                state = voiceState,
+                onStartListening = {
+                    val hasMicPermission = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.RECORD_AUDIO
+                    ) == PackageManager.PERMISSION_GRANTED
+                    if (hasMicPermission) {
+                        viewModel.startVoiceAssistant()
+                    } else {
+                        audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                },
+                onStopListening = viewModel::stopVoiceAssistant,
+                onProcessTextCommand = viewModel::processVoiceTextCommand,
+                onDismiss = {
+                    viewModel.stopVoiceAssistant()
+                    showVoiceSheet = false
+                }
+            )
         }
     }
 }

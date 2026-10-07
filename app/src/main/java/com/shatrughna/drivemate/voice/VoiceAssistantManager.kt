@@ -1,0 +1,326 @@
+package com.shatrughna.drivemate.voice
+
+import android.app.SearchManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import android.provider.MediaStore
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import com.shatrughna.drivemate.car.CarConnectionManager
+import com.shatrughna.drivemate.data.preferences.DriveMatePreferencesRepository
+import com.shatrughna.drivemate.destination.DestinationManager
+import com.shatrughna.drivemate.driving.TripTracker
+import com.shatrughna.drivemate.greeting.GreetingTtsManager
+import com.shatrughna.drivemate.util.AppLogger
+import com.shatrughna.drivemate.weather.WeatherRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.Locale
+
+sealed class VoiceAssistantState {
+    data object Idle : VoiceAssistantState()
+    data object Listening : VoiceAssistantState()
+    data class Processing(val recognizedText: String) : VoiceAssistantState()
+    data class Responding(val speechText: String) : VoiceAssistantState()
+    data class Error(val message: String) : VoiceAssistantState()
+}
+
+interface VoiceAssistantManager {
+    val state: StateFlow<VoiceAssistantState>
+    fun startListening()
+    fun stopListening()
+    fun processTextCommand(commandText: String)
+}
+
+class VoiceAssistantManagerImpl(
+    private val context: Context,
+    private val ttsManager: GreetingTtsManager,
+    private val preferencesRepository: DriveMatePreferencesRepository,
+    private val weatherRepository: WeatherRepository,
+    private val destinationManager: DestinationManager,
+    private val tripTracker: TripTracker,
+    private val carConnectionManager: CarConnectionManager,
+    private val parser: VoiceCommandParser = VoiceCommandParser(),
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+) : VoiceAssistantManager {
+
+    private val _state = MutableStateFlow<VoiceAssistantState>(VoiceAssistantState.Idle)
+    override val state: StateFlow<VoiceAssistantState> = _state.asStateFlow()
+
+    private var speechRecognizer: SpeechRecognizer? = null
+
+    private fun getOrCreateRecognizer(): SpeechRecognizer? {
+        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+            AppLogger.w(AppLogger.Tag.APP, "Speech recognition is not available on this device.")
+            _state.value = VoiceAssistantState.Error("Speech recognition not available")
+            return null
+        }
+        if (speechRecognizer == null) {
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
+                setRecognitionListener(createListener())
+            }
+        }
+        return speechRecognizer
+    }
+
+    override fun startListening() {
+        scope.launch {
+            val recognizer = getOrCreateRecognizer() ?: return@launch
+            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            }
+            try {
+                _state.value = VoiceAssistantState.Listening
+                recognizer.startListening(intent)
+            } catch (e: Exception) {
+                AppLogger.e(AppLogger.Tag.APP, "Failed to start speech recognizer", e)
+                _state.value = VoiceAssistantState.Error("Failed to listen: ${e.message}")
+            }
+        }
+    }
+
+    override fun stopListening() {
+        speechRecognizer?.stopListening()
+        if (_state.value is VoiceAssistantState.Listening) {
+            _state.value = VoiceAssistantState.Idle
+        }
+    }
+
+    override fun processTextCommand(commandText: String) {
+        scope.launch {
+            executeCommand(parser.parse(commandText))
+        }
+    }
+
+    private fun createListener(): RecognitionListener {
+        return object : RecognitionListener {
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {
+                if (_state.value is VoiceAssistantState.Listening) {
+                    _state.value = VoiceAssistantState.Processing("Analyzing...")
+                }
+            }
+
+            override fun onError(error: Int) {
+                val errorMsg = when (error) {
+                    SpeechRecognizer.ERROR_NO_MATCH -> "No speech recognized. Please try again."
+                    SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Listening timed out."
+                    SpeechRecognizer.ERROR_AUDIO -> "Audio recording error."
+                    else -> "Speech recognition error ($error)"
+                }
+                AppLogger.w(AppLogger.Tag.APP, "Speech recognizer error: $errorMsg")
+                _state.value = VoiceAssistantState.Error(errorMsg)
+            }
+
+            override fun onResults(results: Bundle?) {
+                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                val recognizedText = matches?.firstOrNull() ?: ""
+                if (recognizedText.isNotBlank()) {
+                    _state.value = VoiceAssistantState.Processing(recognizedText)
+                    val command = parser.parse(recognizedText)
+                    scope.launch {
+                        executeCommand(command)
+                    }
+                } else {
+                    _state.value = VoiceAssistantState.Idle
+                }
+            }
+
+            override fun onPartialResults(partialResults: Bundle?) {
+                val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                val partial = matches?.firstOrNull()
+                if (!partial.isNullOrBlank()) {
+                    _state.value = VoiceAssistantState.Processing(partial)
+                }
+            }
+
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        }
+    }
+
+    private suspend fun executeCommand(command: VoiceCommand) {
+        val settings = preferencesRepository.settingsFlow.first()
+
+        when (command) {
+            is VoiceCommand.PlayMusic -> {
+                val appToUse = command.appName ?: settings.preferredMusicApp
+                val speech = "Playing ${command.query} on $appToUse."
+                respondWithVoice(speech)
+                dispatchMusicIntent(command.query, appToUse)
+            }
+
+            is VoiceCommand.Navigate -> {
+                val speech = "Starting navigation to ${command.destination}."
+                respondWithVoice(speech)
+                dispatchNavigationIntent(command.destination)
+            }
+
+            VoiceCommand.CheckWeather -> {
+                val weather = try {
+                    weatherRepository.getCurrentWeather(
+                        cityName = settings.weatherCityName,
+                        latitude = settings.weatherLatitude,
+                        longitude = settings.weatherLongitude
+                    )
+                } catch (e: Exception) {
+                    null
+                }
+                val speech = if (weather != null) {
+                    "It is currently ${weather.displayTemperature} and ${weather.conditionText.lowercase()} in ${weather.cityName}."
+                } else {
+                    "Unable to retrieve current weather right now."
+                }
+                respondWithVoice(speech)
+            }
+
+            VoiceCommand.CheckTripStats -> {
+                val stats = tripTracker.tripStats.value
+                val activeMins = (stats.activeTripDurationSeconds / 60)
+                val speech = if (activeMins > 0 || stats.activeTripDistanceKm > 0) {
+                    "You have been driving for $activeMins minutes, covering ${String.format("%.1f", stats.activeTripDistanceKm)} kilometers."
+                } else {
+                    "Today's total driving distance is ${String.format("%.1f", stats.todayTotalDistanceKm)} kilometers across ${stats.todayTripsCount} trips."
+                }
+                respondWithVoice(speech)
+            }
+
+            VoiceCommand.CheckVehicleCare -> {
+                val remainingKm = (settings.nextServiceKm - settings.odometerKm).coerceAtLeast(0)
+                val speech = "Your Tata Nexon has covered ${settings.odometerKm} kilometers. Next service is due at ${settings.nextServiceKm} kilometers, which is in $remainingKm kilometers."
+                respondWithVoice(speech)
+            }
+
+            VoiceCommand.FindCar -> {
+                val speech = if (settings.hasParkedLocation) {
+                    val address = settings.lastParkedAddress ?: "your last recorded parking coordinates"
+                    "Your Tata Nexon is parked at $address."
+                } else {
+                    "No saved parking location found. DriveMate will automatically save your spot when you park."
+                }
+                respondWithVoice(speech)
+            }
+
+            is VoiceCommand.WatchVideo -> {
+                val isCarConnected = carConnectionManager.connectionState.value.isVerifiedCarSession
+                if (isCarConnected) {
+                    // Google / NHTSA safety restriction while driving
+                    val speech = "For driving safety, video cannot play on the car screen while driving. Playing ${command.query} audio via your car speakers."
+                    respondWithVoice(speech)
+                    dispatchMusicIntent(command.query, "YouTube Music")
+                } else {
+                    val speech = "Opening YouTube for ${command.query} on your phone screen."
+                    respondWithVoice(speech)
+                    dispatchYouTubeIntent(command.query)
+                }
+            }
+
+            is VoiceCommand.Unknown -> {
+                val speech = "I didn't quite catch that. You can ask me to play a song, navigate, check the weather, or check trip status."
+                respondWithVoice(speech)
+            }
+        }
+    }
+
+    private suspend fun respondWithVoice(speechText: String) {
+        _state.value = VoiceAssistantState.Responding(speechText)
+        withContext(Dispatchers.Default) {
+            ttsManager.speak(speechText)
+        }
+        _state.value = VoiceAssistantState.Idle
+    }
+
+    private fun dispatchMusicIntent(query: String, preferredApp: String) {
+        try {
+            val intent = Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                putExtra(SearchManager.QUERY, query)
+                putExtra(MediaStore.EXTRA_MEDIA_FOCUS, "vnd.android.cursor.item/*")
+            }
+
+            when (preferredApp.lowercase()) {
+                "spotify" -> {
+                    intent.setPackage("com.spotify.music")
+                }
+                "youtube music", "yt music" -> {
+                    intent.setPackage("com.google.android.apps.youtube.music")
+                }
+            }
+
+            if (intent.resolveActivity(context.packageManager) != null) {
+                context.startActivity(intent)
+            } else {
+                // Fallback to generic media or Spotify search uri
+                val uriIntent = Intent(Intent.ACTION_VIEW, Uri.parse("spotify:search:${Uri.encode(query)}")).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                if (uriIntent.resolveActivity(context.packageManager) != null) {
+                    context.startActivity(uriIntent)
+                } else {
+                    val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://open.spotify.com/search/${Uri.encode(query)}")).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(webIntent)
+                }
+            }
+        } catch (e: Exception) {
+            AppLogger.e(AppLogger.Tag.APP, "Failed to dispatch music intent: ${e.message}", e)
+        }
+    }
+
+    private fun dispatchNavigationIntent(destination: String) {
+        try {
+            val query = Uri.encode(destination)
+            val gmmIntentUri = Uri.parse("google.navigation:q=$query")
+            val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri).apply {
+                setPackage("com.google.android.apps.maps")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+
+            if (mapIntent.resolveActivity(context.packageManager) != null) {
+                context.startActivity(mapIntent)
+            } else {
+                val geoIntent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=$query")).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(geoIntent)
+            }
+        } catch (e: Exception) {
+            AppLogger.e(AppLogger.Tag.APP, "Failed to launch navigation: ${e.message}", e)
+        }
+    }
+
+    private fun dispatchYouTubeIntent(query: String) {
+        try {
+            val encoded = Uri.encode(query)
+            val appIntent = Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube:$encoded")).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            if (appIntent.resolveActivity(context.packageManager) != null) {
+                context.startActivity(appIntent)
+            } else {
+                val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=$encoded")).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(webIntent)
+            }
+        } catch (e: Exception) {
+            AppLogger.e(AppLogger.Tag.APP, "Failed to launch YouTube: ${e.message}", e)
+        }
+    }
+}

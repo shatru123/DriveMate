@@ -25,6 +25,10 @@ import com.shatrughna.drivemate.weather.WeatherRepository
 
 import com.shatrughna.drivemate.location.DeviceLocationProvider
 import com.shatrughna.drivemate.location.DeviceLocationProviderImpl
+import com.shatrughna.drivemate.driving.TripHistoryRepository
+import com.shatrughna.drivemate.driving.TripHistoryRepositoryImpl
+import com.shatrughna.drivemate.voice.VoiceAssistantManager
+import com.shatrughna.drivemate.voice.VoiceAssistantManagerImpl
 
 class DriveMateApplication : Application() {
 
@@ -52,18 +56,24 @@ class DriveMateApplication : Application() {
     lateinit var destinationManager: DestinationManager
         private set
 
-    lateinit var tripTracker: TripTracker
+    lateinit var locationProvider: DeviceLocationProvider
         private set
 
-    lateinit var locationProvider: DeviceLocationProvider
+    lateinit var tripHistoryRepository: TripHistoryRepository
+        private set
+
+    lateinit var tripTracker: TripTracker
         private set
 
     lateinit var greetingController: GreetingController
         private set
 
+    lateinit var voiceAssistantManager: VoiceAssistantManager
+        private set
+
     override fun onCreate() {
         super.onCreate()
-        AppLogger.i(AppLogger.Tag.APP, "Initializing DriveMate Application (V2)...")
+        AppLogger.i(AppLogger.Tag.APP, "Initializing DriveMate Application (V2 Smart Driving)...")
 
         preferencesRepository = DriveMatePreferencesRepositoryImpl(this)
         carConnectionManager = AndroidAutoCarConnectionManager(this)
@@ -73,8 +83,16 @@ class DriveMateApplication : Application() {
         weatherRepository = OpenMeteoWeatherRepository()
         vehicleCareManager = VehicleCareManagerImpl()
         destinationManager = DestinationManagerImpl()
-        tripTracker = TripTrackerImpl(sessionManager, preferencesRepository)
         locationProvider = DeviceLocationProviderImpl(this)
+        tripHistoryRepository = TripHistoryRepositoryImpl(this)
+
+        tripTracker = TripTrackerImpl(
+            sessionManager = sessionManager,
+            preferencesRepository = preferencesRepository,
+            locationProvider = locationProvider,
+            tripHistoryRepository = tripHistoryRepository,
+            ttsManager = ttsManager
+        )
 
         greetingController = GreetingControllerImpl(
             preferencesRepository = preferencesRepository,
@@ -84,6 +102,16 @@ class DriveMateApplication : Application() {
             weatherRepository = weatherRepository,
             vehicleCareManager = vehicleCareManager,
             locationProvider = locationProvider
+        )
+
+        voiceAssistantManager = VoiceAssistantManagerImpl(
+            context = this,
+            ttsManager = ttsManager,
+            preferencesRepository = preferencesRepository,
+            weatherRepository = weatherRepository,
+            destinationManager = destinationManager,
+            tripTracker = tripTracker,
+            carConnectionManager = carConnectionManager
         )
 
         // Start connection monitoring, trip tracking, and greeting controller

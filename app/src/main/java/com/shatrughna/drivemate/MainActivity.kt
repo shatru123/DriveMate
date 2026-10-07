@@ -48,7 +48,9 @@ class MainActivity : ComponentActivity() {
             vehicleCareManager = app.vehicleCareManager,
             destinationManager = app.destinationManager,
             tripTracker = app.tripTracker,
-            locationProvider = app.locationProvider
+            locationProvider = app.locationProvider,
+            voiceAssistantManager = app.voiceAssistantManager,
+            tripHistoryRepository = app.tripHistoryRepository
         )
     }
 

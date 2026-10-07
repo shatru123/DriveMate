@@ -279,6 +279,21 @@ The test suite validates greeting generation, session deduplication, and state m
 
 ---
 
+## 👨‍💻 Creator & Lead Developer
+
+<div align="center">
+  <img src="shatrughna.jpg" width="140" style="border-radius: 50%; border: 3px solid #00E5FF;" alt="Shatrughna Ambhore" />
+  <h3>Shatrughna Ambhore</h3>
+  <p><b>Creator & Lead Developer of DriveMate</b></p>
+  <p>
+    📧 <a href="mailto:ambhoreshatrughna@gmail.com">ambhoreshatrughna@gmail.com</a> &nbsp;|&nbsp;
+    📱 <a href="tel:+919604466334">+91 9604466334</a>
+  </p>
+  <p><i>Crafted with passion for the Tata Nexon Creative+ S</i></p>
+</div>
+
+---
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

@@ -37,6 +37,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -66,6 +68,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.shatrughna.drivemate.data.model.GreetingStyle
 import com.shatrughna.drivemate.greeting.GreetingGeneratorImpl
 import com.shatrughna.drivemate.greeting.TemplateValidationResult
+import com.shatrughna.drivemate.ui.components.CreatorCard
 import com.shatrughna.drivemate.ui.theme.DarkBackground
 import com.shatrughna.drivemate.ui.theme.DarkBorder
 import com.shatrughna.drivemate.ui.theme.DarkSurface
@@ -405,6 +408,71 @@ fun SettingsScreen(
                         colors = outlinedTextFieldColors(),
                         modifier = Modifier.fillMaxWidth()
                     )
+                }
+            }
+
+            // Smart Assistant & Safety
+            SettingsSectionHeader(title = "Voice Assistant & Driving Safety")
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = DarkSurface),
+                border = BorderStroke(1.dp, DarkBorder),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Driver Fatigue Alert",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Announce rest reminder after 2 hours of continuous driving",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                        }
+                        Switch(
+                            checked = settings.driverFatigueAlertEnabled,
+                            onCheckedChange = viewModel::updateDriverFatigueAlert
+                        )
+                    }
+
+                    HorizontalDivider(color = DarkBorder)
+
+                    Column {
+                        Text(
+                            text = "Preferred Music Player for Voice",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "Target app when saying 'Play [song]'",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextSecondary
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("Spotify", "YouTube Music").forEach { app ->
+                                val selected = settings.preferredMusicApp.equals(app, ignoreCase = true)
+                                FilterChip(
+                                    selected = selected,
+                                    onClick = { viewModel.updatePreferredMusicApp(app) },
+                                    label = { Text(app) }
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -808,6 +876,10 @@ fun SettingsScreen(
                     }
                 }
             }
+
+            // About Developer & Creator
+            SettingsSectionHeader(title = "About DriveMate & Developer")
+            CreatorCard()
 
             Spacer(modifier = Modifier.height(30.dp))
         }
