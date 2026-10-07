@@ -88,8 +88,8 @@ data class VehicleCapabilitiesState(
     val parkingSensors: FeatureCapability = FeatureCapability(
         featureId = "parking_sensors",
         title = "Reverse Parking Assist",
-        status = CapabilityStatus.SUPPORTED,
-        detailMessage = "Sensor overlay and ultrasonic visualization active in companion parking mode.",
+        status = CapabilityStatus.NOT_SUPPORTED_BY_VEHICLE,
+        detailMessage = "Vehicle ultrasonic sensor bus is not exposed to third-party Android Auto companion apps. Factory sensors and camera view remain active on OEM infotainment screen.",
         iconName = "parking"
     )
 ) {

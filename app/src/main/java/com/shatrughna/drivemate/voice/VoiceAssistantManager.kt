@@ -180,6 +180,9 @@ class VoiceAssistantManagerImpl(
             }
 
             override fun onResults(results: Bundle?) {
+                scope.launch {
+                    audioCoordinator?.onCommandListeningFinished()
+                }
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val recognizedText = matches?.firstOrNull() ?: ""
                 if (recognizedText.isNotBlank()) {

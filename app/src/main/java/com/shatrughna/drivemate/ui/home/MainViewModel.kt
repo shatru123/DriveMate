@@ -27,6 +27,10 @@ import com.shatrughna.drivemate.location.DeviceLocationProvider
 import com.shatrughna.drivemate.location.WeatherLocationResolver
 import com.shatrughna.drivemate.location.WeatherLocationResolverImpl
 import com.shatrughna.drivemate.util.AppLogger
+import com.shatrughna.drivemate.core.telemetry.VehicleTelemetry
+import com.shatrughna.drivemate.core.telemetry.VehicleTelemetryRepository
+import com.shatrughna.drivemate.voice.AudioInputCoordinator
+import com.shatrughna.drivemate.voice.AudioOwnerState
 import com.shatrughna.drivemate.voice.VoiceAssistantManager
 import com.shatrughna.drivemate.voice.VoiceAssistantState
 import com.shatrughna.drivemate.voice.wakeword.WakeWordManager
@@ -77,8 +81,16 @@ class MainViewModel(
     private val documentVaultRepository: DocumentVaultRepository? = null,
     private val maintenanceRepository: MaintenanceRepository? = null,
     private val expenseRepository: ExpenseRepository? = null,
-    private val timelineRepository: VehicleTimelineRepository? = null
+    private val timelineRepository: VehicleTimelineRepository? = null,
+    private val vehicleTelemetryRepository: VehicleTelemetryRepository? = null,
+    private val audioCoordinator: AudioInputCoordinator? = null
 ) : ViewModel() {
+
+    val telemetry: StateFlow<VehicleTelemetry> = vehicleTelemetryRepository?.telemetry
+        ?: MutableStateFlow(VehicleTelemetry())
+
+    val audioOwnerState: StateFlow<AudioOwnerState> = audioCoordinator?.state
+        ?: MutableStateFlow(AudioOwnerState.IDLE)
 
     val settings: StateFlow<DriveMateSettings> = preferencesRepository.settingsFlow
         .stateIn(
@@ -431,7 +443,9 @@ class MainViewModel(
         private val documentVaultRepository: DocumentVaultRepository? = null,
         private val maintenanceRepository: MaintenanceRepository? = null,
         private val expenseRepository: ExpenseRepository? = null,
-        private val timelineRepository: VehicleTimelineRepository? = null
+        private val timelineRepository: VehicleTimelineRepository? = null,
+        private val vehicleTelemetryRepository: VehicleTelemetryRepository? = null,
+        private val audioCoordinator: AudioInputCoordinator? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -455,7 +469,9 @@ class MainViewModel(
                 documentVaultRepository,
                 maintenanceRepository,
                 expenseRepository,
-                timelineRepository
+                timelineRepository,
+                vehicleTelemetryRepository,
+                audioCoordinator
             ) as T
         }
     }

@@ -965,7 +965,8 @@ fun ConnectionStatusCard(
     connectionState: CarConnectionState,
     isSimulating: Boolean,
     onToggleSimulation: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onDiagnosticsClick: (() -> Unit)? = null
 ) {
     val isConnected = connectionState.isConnected
     val statusText = if (isConnected) "Connected" else "Disconnected"
@@ -1042,6 +1043,33 @@ fun ConnectionStatusCard(
                         checkedTrackColor = NexonCyanPrimary.copy(alpha = 0.3f)
                     )
                 )
+            }
+
+            if (onDiagnosticsClick != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = onDiagnosticsClick,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .rememberPressScale(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = NexonCyanPrimary
+                    ),
+                    border = BorderStroke(1.dp, NexonCyanPrimary.copy(alpha = 0.5f)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Speed,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Hardware Telemetry & Audio Diagnostics",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp
+                    )
+                }
             }
         }
     }

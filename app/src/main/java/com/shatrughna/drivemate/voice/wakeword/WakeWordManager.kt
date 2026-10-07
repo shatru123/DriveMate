@@ -50,6 +50,7 @@ class WakeWordManagerImpl(
     private val sessionManager: DrivingSessionManager,
     private val preferencesRepository: DriveMatePreferencesRepository,
     private val audioCoordinator: AudioInputCoordinator? = null,
+    private val carConnectionManager: com.shatrughna.drivemate.car.CarConnectionManager? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 ) : WakeWordManager, WakeWordListener {
 
@@ -66,6 +67,16 @@ class WakeWordManagerImpl(
         scope.launch {
             sessionManager.isSessionActive.collectLatest { isActive ->
                 if (isActive) {
+                    val isAndroidAuto = carConnectionManager?.connectionState?.value?.isAndroidAutoConnected == true
+                    if (isAndroidAuto) {
+                        AppLogger.i(
+                            AppLogger.Tag.AUDIO,
+                            "Android Auto active: Continuous hotword suppressed to preserve Spotify/car media playback. Explicit push-to-talk active."
+                        )
+                        stop()
+                        return@collectLatest
+                    }
+
                     val settings = preferencesRepository.settingsFlow.first()
                     if (settings.heyDriveMateEnabled) {
                         AppLogger.i(AppLogger.Tag.APP, "Driving session active: Starting \"Hey DriveMate\" engine.")
@@ -112,6 +123,13 @@ class WakeWordManagerImpl(
     override fun start() {
         scope.launch {
             mutex.withLock {
+                val isAndroidAuto = carConnectionManager?.connectionState?.value?.isAndroidAutoConnected == true
+                if (isAndroidAuto) {
+                    AppLogger.d(AppLogger.Tag.AUDIO, "Android Auto projection active: continuous hotword recognition suppressed.")
+                    _state.value = WakeWordState.STOPPED
+                    return@withLock
+                }
+
                 val settings = preferencesRepository.settingsFlow.first()
                 if (!settings.heyDriveMateEnabled) {
                     AppLogger.d(AppLogger.Tag.APP, "Hey DriveMate is disabled in settings. Skipping start.")
@@ -198,6 +216,10 @@ class WakeWordManagerImpl(
 
     private fun resumeWakeWordListening() {
         scope.launch {
+            if (carConnectionManager?.connectionState?.value?.isAndroidAutoConnected == true) {
+                _state.value = WakeWordState.STOPPED
+                return@launch
+            }
             if (sessionManager.isSessionActive.value) {
                 val settings = preferencesRepository.settingsFlow.first()
                 if (settings.heyDriveMateEnabled) {

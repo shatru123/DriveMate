@@ -72,6 +72,15 @@ class GreetingControllerImpl(
         // Listen for new verified driving sessions
         scope.launch {
             sessionManager.greetingTriggerEvents.collectLatest { session ->
+                val settings = preferencesRepository.settingsFlow.first()
+                if (session.connectionState.isAndroidAutoConnected && !settings.autoGreetingOnAndroidAuto) {
+                    AppLogger.i(
+                        AppLogger.Tag.GREETING,
+                        "Android Auto connected: Automatic welcome greeting disabled by default to ensure uninterrupted car media playback (Spotify)."
+                    )
+                    return@collectLatest
+                }
+
                 AppLogger.i(
                     AppLogger.Tag.GREETING,
                     "Greeting event triggered from session [${session.sessionId}] for: ${session.connectionState.deviceOrVehicleName}"
@@ -163,7 +172,7 @@ class GreetingControllerImpl(
             ttsManager.setVoice(settings.voiceName)
         }
 
-        // Bounded retry loop: max 2 retries (3 total attempts)
+        // Bounded retry loop: max 3 attempts; if focus is denied, abort immediately to protect media playback
         val maxAttempts = 3
         var lastError: Throwable? = null
 
@@ -192,6 +201,13 @@ class GreetingControllerImpl(
                 return Result.success(greetingText)
             } else {
                 lastError = speakResult.exceptionOrNull()
+                // If audio focus is denied, skip immediately with zero aggressive retry loops
+                if (lastError?.message?.contains("Audio focus", ignoreCase = true) == true ||
+                    lastError?.message?.contains("AUDIO_FOCUS", ignoreCase = true) == true
+                ) {
+                    AppLogger.w(AppLogger.Tag.GREETING, "Audio focus denied. Aborting retries immediately to leave media playback undisturbed.")
+                    break
+                }
                 AppLogger.w(
                     AppLogger.Tag.GREETING,
                     "TTS attempt $attempt failed: ${lastError?.message}."

@@ -3,6 +3,7 @@ package com.shatrughna.drivemate.destination
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.car.app.CarContext
 import com.shatrughna.drivemate.data.model.Destination
 import com.shatrughna.drivemate.data.model.DestinationCategory
 import com.shatrughna.drivemate.data.model.DestinationSource
@@ -148,6 +149,19 @@ class DestinationManagerImpl(
     override fun launchNavigationQuery(context: Context, destinationQuery: String): Boolean {
         try {
             val query = Uri.encode(destinationQuery)
+
+            if (context is CarContext) {
+                try {
+                    val navIntent = Intent(CarContext.ACTION_NAVIGATE, Uri.parse("geo:0,0?q=$query"))
+                    context.startCarApp(navIntent)
+                    AppLogger.i(AppLogger.TAG_ANDROID_AUTO, "Launched CarContext startCarApp navigation for $destinationQuery")
+                    recordQueryToRecents(destinationQuery)
+                    return true
+                } catch (e: Exception) {
+                    AppLogger.w(AppLogger.TAG_ANDROID_AUTO, "CarContext startCarApp failed: ${e.message}, falling back to activity intent")
+                }
+            }
+
             val gmmIntentUri = Uri.parse("google.navigation:q=$query")
             val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri).apply {
                 setPackage("com.google.android.apps.maps")

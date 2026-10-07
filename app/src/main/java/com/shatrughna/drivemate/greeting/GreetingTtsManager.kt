@@ -77,14 +77,14 @@ class GreetingTtsManagerImpl(
 
     private val utteranceProgressListener = object : UtteranceProgressListener() {
         override fun onStart(utteranceId: String?) {
-            AppLogger.d(AppLogger.Tag.TTS, "Speech playback started for utteranceId: $utteranceId")
+            AppLogger.i(AppLogger.Tag.TTS, "[TTS_STARTED] Speech playback started for utteranceId: $utteranceId")
             if (utteranceId != null && pendingUtterances.containsKey(utteranceId)) {
                 _isSpeaking.value = true
             }
         }
 
         override fun onDone(utteranceId: String?) {
-            AppLogger.d(AppLogger.Tag.TTS, "Speech playback completed for utteranceId: $utteranceId")
+            AppLogger.i(AppLogger.Tag.TTS, "[TTS_COMPLETED] Speech playback completed for utteranceId: $utteranceId")
             val def = if (utteranceId != null) pendingUtterances.remove(utteranceId) else null
             if (def != null) {
                 _isSpeaking.value = false
@@ -243,12 +243,18 @@ class GreetingTtsManagerImpl(
         val focusGranted = requestAudioFocus()
         if (!focusGranted) {
             pendingUtterances.remove(utteranceId)
-            AppLogger.w(AppLogger.Tag.TTS, "Audio focus was not granted. Aborting greeting playback.")
+            AppLogger.w(AppLogger.Tag.AUDIO_FOCUS, "[AUDIO_FOCUS_DENIED] Audio focus was not granted. Aborting TTS playback.")
             return Result.failure(IllegalStateException("Audio focus request denied"))
         }
 
+        // Apply modern automotive navigation guidance audio attributes
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+            .build()
+        engine.setAudioAttributes(audioAttributes)
+
         val params = Bundle().apply {
-            putInt(TextToSpeech.Engine.KEY_PARAM_STREAM, AudioManager.STREAM_MUSIC)
             putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f)
         }
 
@@ -257,7 +263,7 @@ class GreetingTtsManagerImpl(
             pendingUtterances.remove(utteranceId)
             releaseAudioFocus()
             _isSpeaking.value = false
-            AppLogger.e(AppLogger.Tag.TTS, "Failed to queue TTS utterance: $queueResult")
+            AppLogger.e(AppLogger.Tag.TTS, "[TTS_CANCELLED] Failed to queue TTS utterance: $queueResult")
             return Result.failure(IllegalStateException("Failed to queue TTS speech: $queueResult"))
         }
 
@@ -266,11 +272,11 @@ class GreetingTtsManagerImpl(
                 deferred.await()
             }
         } catch (e: TimeoutCancellationException) {
-            AppLogger.e(AppLogger.Tag.TTS, "TTS utterance $utteranceId timed out after 15s")
+            AppLogger.e(AppLogger.Tag.TTS, "[TTS_CANCELLED] TTS utterance $utteranceId timed out after 15s")
             stop()
             Result.failure(e)
         } catch (e: CancellationException) {
-            AppLogger.w(AppLogger.Tag.TTS, "TTS utterance $utteranceId was cancelled")
+            AppLogger.w(AppLogger.Tag.TTS, "[TTS_CANCELLED] TTS utterance $utteranceId was cancelled")
             stop()
             throw e
         } finally {
@@ -307,6 +313,7 @@ class GreetingTtsManagerImpl(
     private fun requestAudioFocus(): Boolean {
         val am = audioManager ?: return true
         return try {
+            AppLogger.d(AppLogger.Tag.AUDIO_FOCUS, "[AUDIO_FOCUS_REQUEST] Requesting TRANSIENT_MAY_DUCK focus for TTS speech")
             val audioAttributes = AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
@@ -316,7 +323,10 @@ class GreetingTtsManagerImpl(
                 .setAudioAttributes(audioAttributes)
                 .setAcceptsDelayedFocusGain(false)
                 .setOnAudioFocusChangeListener { focusChange ->
-                    if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+                    if (focusChange == AudioManager.AUDIOFOCUS_LOSS ||
+                        focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT
+                    ) {
+                        AppLogger.w(AppLogger.Tag.AUDIO_FOCUS, "[AUDIO_FOCUS_LOSS] Audio focus lost ($focusChange). Halting speech immediately.")
                         stop()
                     }
                 }
@@ -324,10 +334,15 @@ class GreetingTtsManagerImpl(
 
             audioFocusRequest = focusRequest
             val result = am.requestAudioFocus(focusRequest)
-            AppLogger.d(AppLogger.Tag.TTS, "Audio focus request result: $result")
-            result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            val granted = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            if (granted) {
+                AppLogger.d(AppLogger.Tag.AUDIO_FOCUS, "[AUDIO_FOCUS_GRANTED] Audio focus granted for driving assistance TTS.")
+            } else {
+                AppLogger.w(AppLogger.Tag.AUDIO_FOCUS, "[AUDIO_FOCUS_DENIED] Audio focus denied (code=$result).")
+            }
+            granted
         } catch (e: Exception) {
-            AppLogger.w(AppLogger.Tag.TTS, "Failed to request audio focus", e)
+            AppLogger.w(AppLogger.Tag.AUDIO_FOCUS, "[AUDIO_FOCUS_DENIED] Failed to request audio focus: ${e.message}", e)
             false
         }
     }
@@ -338,9 +353,9 @@ class GreetingTtsManagerImpl(
         try {
             am.abandonAudioFocusRequest(req)
             audioFocusRequest = null
-            AppLogger.d(AppLogger.Tag.TTS, "Audio focus abandoned successfully")
+            AppLogger.d(AppLogger.Tag.AUDIO_FOCUS, "[AUDIO_FOCUS_ABANDONED] Audio focus abandoned. Media returned to original level.")
         } catch (e: Exception) {
-            AppLogger.w(AppLogger.Tag.TTS, "Failed to abandon audio focus", e)
+            AppLogger.w(AppLogger.Tag.AUDIO_FOCUS, "Failed to abandon audio focus", e)
         }
     }
 }

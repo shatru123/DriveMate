@@ -181,6 +181,7 @@ class AndroidAutoReliabilityTest {
         override suspend fun updateHeyDriveMateEnabled(enabled: Boolean) {}
         override suspend fun updateWakeWordSensitivity(sensitivity: Float) {}
         override suspend fun updateDemoModeEnabled(enabled: Boolean) {}
+        override suspend fun updateAutoGreetingOnAndroidAuto(enabled: Boolean) {}
         override suspend fun resetToDefaults() {}
     }
 
@@ -208,7 +209,9 @@ class AndroidAutoReliabilityTest {
         fakeCarConnectionManager = FakeCarConnectionManager()
         fakeTtsManager = FakeGreetingTtsManager()
         fakeWeatherRepository = FakeWeatherRepository()
-        fakePreferencesRepository = FakePreferencesRepository()
+        fakePreferencesRepository = FakePreferencesRepository(
+            initialSettings = DriveMateSettings(autoGreetingOnAndroidAuto = true)
+        )
         fakeLocationProvider = FakeDeviceLocationProvider()
 
         sessionManager = DrivingSessionManagerImpl(
@@ -519,7 +522,8 @@ class AndroidAutoReliabilityTest {
     @Test
     fun testScenario14_dynamicDeviceLocationDetected_greetingReflectsCurrentCity() = runTest(testDispatcher) {
         fakePreferencesRepository.settings.value = DriveMateSettings(
-            greetingStyle = GreetingStyle.DETAILED
+            greetingStyle = GreetingStyle.DETAILED,
+            autoGreetingOnAndroidAuto = true
         )
         fakeLocationProvider.hasPermission = true
         fakeLocationProvider.mockLocation = DeviceLocation(
@@ -546,7 +550,8 @@ class AndroidAutoReliabilityTest {
     fun testScenario15_locationPermissionDenied_fallsBackToSettingsCity() = runTest(testDispatcher) {
         fakePreferencesRepository.settings.value = DriveMateSettings(
             greetingStyle = GreetingStyle.DETAILED,
-            weatherCityName = "Pune"
+            weatherCityName = "Pune",
+            autoGreetingOnAndroidAuto = true
         )
         fakeLocationProvider.hasPermission = false
         fakeLocationProvider.mockLocation = null
@@ -563,5 +568,24 @@ class AndroidAutoReliabilityTest {
         assertNotNull(spoken)
         // Falls back to settings city "Pune"
         assertTrue(spoken!!.contains("Pune"))
+    }
+
+    // 16. Default V6 Behavior: Android Auto connects with autoGreetingOnAndroidAuto = false -> greeting suppressed to protect Spotify
+    @Test
+    fun testScenario16_androidAutoGreetingSuppressedByDefault() = runTest(testDispatcher) {
+        fakePreferencesRepository.settings.value = DriveMateSettings(
+            autoGreetingOnAndroidAuto = false
+        )
+
+        val aaState = CarConnectionState.Connected(
+            connectionType = CarConnectionType.ANDROID_AUTO_PROJECTION,
+            deviceOrVehicleName = "Tata Nexon (Android Auto)"
+        )
+        fakeCarConnectionManager.stateFlow.value = aaState
+        advanceUntilIdle()
+
+        // Greeting must NOT play, leaving audio focus to Spotify / media
+        assertEquals(0, fakeTtsManager.speakCallCount)
+        assertNull(fakeTtsManager.lastSpokenText)
     }
 }

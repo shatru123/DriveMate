@@ -6,17 +6,22 @@ import androidx.car.app.model.Action
 import androidx.car.app.model.Header
 import androidx.car.app.model.MessageTemplate
 import androidx.car.app.model.Template
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import com.shatrughna.drivemate.DriveMateApplication
+import com.shatrughna.drivemate.util.AppLogger
 import com.shatrughna.drivemate.voice.VoiceAssistantState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 /**
  * Dedicated Android Auto Voice Assistant Screen.
- * Prompts the driver and coordinates with VoiceAssistantManager.
+ * Push-to-talk only, with strict lifecycle cleanup ensuring audio focus
+ * and microphone resources are released when exiting or popping the screen.
  */
 class CarVoiceAssistantScreen(carContext: CarContext) : Screen(carContext) {
 
@@ -25,13 +30,29 @@ class CarVoiceAssistantScreen(carContext: CarContext) : Screen(carContext) {
     private var currentState: VoiceAssistantState = VoiceAssistantState.Idle
 
     init {
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStop(owner: LifecycleOwner) {
+                AppLogger.d(AppLogger.TAG_AUDIO_FOCUS, "CarVoiceAssistantScreen onStop - stopping listening")
+                app.voiceAssistantManager.stopListening()
+                app.audioInputCoordinator.abandonAudioFocus()
+            }
+
+            override fun onDestroy(owner: LifecycleOwner) {
+                AppLogger.d(AppLogger.TAG_AUDIO_FOCUS, "CarVoiceAssistantScreen onDestroy - cancelling scope and cleaning up")
+                scope.cancel()
+                app.voiceAssistantManager.stopListening()
+                app.audioInputCoordinator.abandonAudioFocus()
+            }
+        })
+
         scope.launch {
             app.voiceAssistantManager.state.collectLatest { state ->
                 currentState = state
                 invalidate()
             }
         }
-        // Auto-start listening on screen entry
+
+        // Push-to-talk: Trigger single voice request on entry
         app.voiceAssistantManager.startListening()
     }
 

@@ -29,6 +29,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.shatrughna.drivemate.ui.analytics.DrivingAnalyticsScreen
 import com.shatrughna.drivemate.ui.climate.ClimateScreen
+import com.shatrughna.drivemate.ui.diagnostics.VehicleConnectionDiagnosticsScreen
 import com.shatrughna.drivemate.ui.documents.DocumentVaultScreen
 import com.shatrughna.drivemate.ui.expenses.ExpenseScreen
 import com.shatrughna.drivemate.ui.home.DashboardScreen
@@ -47,6 +48,7 @@ import com.shatrughna.drivemate.util.AppLogger
 sealed class Screen {
     data object Splash : Screen()
     data object Dashboard : Screen()
+    data object Diagnostics : Screen()
     data object MyCar : Screen()
     data object DocumentVault : Screen()
     data object Maintenance : Screen()
@@ -82,7 +84,9 @@ class MainActivity : ComponentActivity() {
             documentVaultRepository = app.documentVaultRepository,
             maintenanceRepository = app.maintenanceRepository,
             expenseRepository = app.expenseRepository,
-            timelineRepository = app.timelineRepository
+            timelineRepository = app.timelineRepository,
+            vehicleTelemetryRepository = app.vehicleTelemetryRepository,
+            audioCoordinator = app.audioInputCoordinator
         )
     }
 
@@ -208,7 +212,20 @@ fun DriveMateAppNavigation(
                     onNavigateToMaintenance = { currentScreen = Screen.Maintenance },
                     onNavigateToExpenses = { currentScreen = Screen.Expenses },
                     onNavigateToAnalytics = { currentScreen = Screen.DrivingAnalytics },
-                    onNavigateToParking = { currentScreen = Screen.ParkingMode }
+                    onNavigateToParking = { currentScreen = Screen.ParkingMode },
+                    onNavigateToDiagnostics = { currentScreen = Screen.Diagnostics }
+                )
+            }
+            Screen.Diagnostics -> {
+                val telemetry by mainViewModel.telemetry.collectAsStateWithLifecycle()
+                val audioState by mainViewModel.audioOwnerState.collectAsStateWithLifecycle()
+                val connectionState by mainViewModel.connectionState.collectAsStateWithLifecycle()
+                VehicleConnectionDiagnosticsScreen(
+                    telemetry = telemetry,
+                    isCarConnected = connectionState.isConnected,
+                    audioState = audioState,
+                    onNavigateBack = { currentScreen = Screen.Dashboard },
+                    onRefresh = { }
                 )
             }
             Screen.MyCar -> {

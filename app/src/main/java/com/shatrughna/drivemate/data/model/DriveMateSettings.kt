@@ -13,6 +13,7 @@ data class DriveMateSettings(
     val vehicleRegistrationNumber: String = "MH 28 BW 1624",
     val vehiclePhotoUri: String? = null,
     val greetingEnabled: Boolean = true,
+    val autoGreetingOnAndroidAuto: Boolean = false,
     val greetingStyle: GreetingStyle = GreetingStyle.NORMAL,
     val customGreetingTemplate: String = "Good {timeOfDay}, {name}. Welcome to your {brand} {model}.",
     val speechRate: Float = 1.0f,
@@ -27,8 +28,11 @@ data class DriveMateSettings(
     val weatherCityName: String = "",
     val weatherLatitude: Double = 0.0,
     val weatherLongitude: Double = 0.0,
-    // High-Precision Odometer & Service Tracking (Double precision preserves fractional 0.8 km drives)
-    val odometerKm: Double = 12500.0,
+    // High-Precision Odometer & Service Tracking (Strictly decoupled)
+    val manualOdometerKm: Double = 12500.0,
+    val vehicleOdometerKm: Double? = null,
+    val gpsTripDistanceKm: Double = 0.0,
+    val odometerKm: Double = vehicleOdometerKm ?: manualOdometerKm,
     val nextServiceKm: Int = 15000,
     val fuelReminderEnabled: Boolean = false,
     val homeAddress: String = "Home",
@@ -51,14 +55,17 @@ data class DriveMateSettings(
     val fullVehicleName: String
         get() = "$vehicleBrand $vehicleModel $vehicleVariant".trim()
 
+    val effectiveOdometerKm: Double
+        get() = vehicleOdometerKm ?: if (manualOdometerKm != 12500.0 && odometerKm == 12500.0) manualOdometerKm else odometerKm
+
     val formattedOdometer: String
-        get() = String.format(Locale.US, "%,.1f km", odometerKm)
+        get() = String.format(Locale.US, "%,.1f km", effectiveOdometerKm)
 
     val normalizedRegistrationNumber: String
         get() = normalizeRegistration(vehicleRegistrationNumber)
 
     val remainingServiceKm: Double
-        get() = (nextServiceKm.toDouble() - odometerKm).coerceAtLeast(0.0)
+        get() = (nextServiceKm.toDouble() - effectiveOdometerKm).coerceAtLeast(0.0)
 
     val hasParkedLocation: Boolean
         get() = lastParkedLatitude != null && lastParkedLongitude != null

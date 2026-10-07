@@ -78,8 +78,9 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
-    // Android for Cars App Library (Official CarConnection API)
+    // Android for Cars App Library (Official CarConnection API & Projected Hardware)
     implementation("androidx.car.app:app:1.7.0")
+    implementation("androidx.car.app:app-projected:1.7.0")
 
     // Jetpack Preferences DataStore
     implementation("androidx.datastore:datastore-preferences:1.1.1")
@@ -91,4 +92,5 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
     testImplementation("androidx.arch.core:core-testing:2.2.0")
+    testImplementation("androidx.car.app:app-testing:1.7.0")
 }

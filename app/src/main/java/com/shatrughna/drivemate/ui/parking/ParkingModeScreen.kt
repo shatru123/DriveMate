@@ -183,7 +183,7 @@ fun ParkingModeScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "ULTRASONIC PROXIMITY RADAR",
+                            text = "SURROUND ASSIST: SENSOR DATA UNAVAILABLE",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = TextMuted,

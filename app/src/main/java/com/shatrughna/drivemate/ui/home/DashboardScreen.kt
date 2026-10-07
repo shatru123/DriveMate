@@ -98,6 +98,7 @@ fun DashboardScreen(
     onNavigateToExpenses: () -> Unit = {},
     onNavigateToAnalytics: () -> Unit = {},
     onNavigateToParking: () -> Unit = {},
+    onNavigateToDiagnostics: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -345,7 +346,8 @@ fun DashboardScreen(
             ConnectionStatusCard(
                 connectionState = connectionState,
                 isSimulating = isSimulating,
-                onToggleSimulation = viewModel::toggleSimulation
+                onToggleSimulation = viewModel::toggleSimulation,
+                onDiagnosticsClick = onNavigateToDiagnostics
             )
 
             // 6. Greeting Experience Card

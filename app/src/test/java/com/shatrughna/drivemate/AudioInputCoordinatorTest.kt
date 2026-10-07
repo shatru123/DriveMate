@@ -49,7 +49,7 @@ class AudioInputCoordinatorTest {
 
         // TTS starts speaking ("Yes?" or greeting)
         coordinator.onTtsStarted()
-        assertEquals(AudioOwnerState.TTS_RESPONSE, coordinator.state.value)
+        assertEquals(AudioOwnerState.TTS, coordinator.state.value)
         assertEquals(AudioResourceOwner.TTS_PLAYBACK, coordinator.activeOwner.value)
 
         // Wake word request must be DENIED during TTS playback to avoid audio feedback

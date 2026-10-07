@@ -12,11 +12,34 @@ object AppLogger {
     enum class Tag(val label: String) {
         APP("DriveMate"),
         CAR_CONNECTION("CarConnection"),
-        GREETING("Greeting"),
+        CAR_HARDWARE("CarHardware"),
+        TELEMETRY("Telemetry"),
+        AUDIO("Audio"),
+        AUDIO_FOCUS("AudioFocus"),
+        MICROPHONE("Microphone"),
         TTS("TTS"),
+        GREETING("Greeting"),
+        ANDROID_AUTO("AndroidAuto"),
+        TRIP("Trip"),
+        OBD("OBD"),
+        TPMS("TPMS"),
+        PERFORMANCE("Performance"),
         SESSION("Session"),
         SETTINGS("Settings")
     }
+
+    val TAG_CAR_HARDWARE = Tag.CAR_HARDWARE
+    val TAG_TELEMETRY = Tag.TELEMETRY
+    val TAG_AUDIO = Tag.AUDIO
+    val TAG_AUDIO_FOCUS = Tag.AUDIO_FOCUS
+    val TAG_MICROPHONE = Tag.MICROPHONE
+    val TAG_TTS = Tag.TTS
+    val TAG_GREETING = Tag.GREETING
+    val TAG_ANDROID_AUTO = Tag.ANDROID_AUTO
+    val TAG_TRIP = Tag.TRIP
+    val TAG_OBD = Tag.OBD
+    val TAG_TPMS = Tag.TPMS
+    val TAG_PERFORMANCE = Tag.PERFORMANCE
 
     private var isDebugEnabled: Boolean = true
 

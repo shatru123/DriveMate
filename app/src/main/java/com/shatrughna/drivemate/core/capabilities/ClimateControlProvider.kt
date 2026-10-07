@@ -45,55 +45,64 @@ class VehicleClimateControlProviderImpl(
     override val climateState: StateFlow<ClimateState> = _climateState.asStateFlow()
 
     override fun setTemperature(tempCelsius: Float): CapabilityActionResult {
-        val clamped = tempCelsius.coerceIn(16.0f, 30.0f)
-        _climateState.value = _climateState.value.copy(targetTemperatureCelsius = clamped)
         val result = capabilityManager.evaluateAction("climate_control", "climate temperature adjustment")
-        return if (!result.success) {
-            CapabilityActionResult(
+        if (!result.success) {
+            return CapabilityActionResult(
                 success = false,
                 status = result.status,
-                userMessage = "Target temperature set to ${clamped.toInt()}°C in companion mode. Note: Your vehicle doesn't currently provide AC control access to DriveMate."
+                userMessage = "Climate controls are read-only. Your Tata Nexon does not expose direct HVAC actuation to DriveMate."
             )
-        } else result
+        }
+        val clamped = tempCelsius.coerceIn(16.0f, 30.0f)
+        _climateState.value = _climateState.value.copy(targetTemperatureCelsius = clamped)
+        return result
     }
 
     override fun setFanSpeed(speed: Int): CapabilityActionResult {
-        val clamped = speed.coerceIn(1, 7)
-        _climateState.value = _climateState.value.copy(fanSpeed = clamped)
         val result = capabilityManager.evaluateAction("climate_control", "fan speed change")
-        return if (!result.success) {
-            CapabilityActionResult(
+        if (!result.success) {
+            return CapabilityActionResult(
                 success = false,
                 status = result.status,
-                userMessage = "Fan speed set to $clamped in companion mode. Note: Direct vehicle HVAC actuation is not available."
+                userMessage = "Direct vehicle HVAC fan speed actuation is not available."
             )
-        } else result
+        }
+        val clamped = speed.coerceIn(1, 7)
+        _climateState.value = _climateState.value.copy(fanSpeed = clamped)
+        return result
     }
 
     override fun setAcEnabled(enabled: Boolean): CapabilityActionResult {
-        _climateState.value = _climateState.value.copy(isAcOn = enabled)
         val result = capabilityManager.evaluateAction("climate_control", if (enabled) "AC turn on" else "AC turn off")
-        return if (!result.success) {
-            CapabilityActionResult(
+        if (!result.success) {
+            return CapabilityActionResult(
                 success = false,
                 status = result.status,
-                userMessage = "AC ${if (enabled) "turned on" else "turned off"} in companion mode. Note: Your vehicle doesn't currently provide AC control access to DriveMate."
+                userMessage = "Direct vehicle AC control is not available."
             )
-        } else result
+        }
+        _climateState.value = _climateState.value.copy(isAcOn = enabled)
+        return result
     }
 
     override fun setAutoMode(enabled: Boolean): CapabilityActionResult {
+        val result = capabilityManager.evaluateAction("climate_control", "Auto climate mode")
+        if (!result.success) return result
         _climateState.value = _climateState.value.copy(isAutoMode = enabled)
-        return capabilityManager.evaluateAction("climate_control", "Auto climate mode")
+        return result
     }
 
     override fun setDefrostActive(active: Boolean): CapabilityActionResult {
+        val result = capabilityManager.evaluateAction("climate_control", "windshield defrost")
+        if (!result.success) return result
         _climateState.value = _climateState.value.copy(isDefrostActive = active)
-        return capabilityManager.evaluateAction("climate_control", "windshield defrost")
+        return result
     }
 
     override fun setRecirculationActive(active: Boolean): CapabilityActionResult {
+        val result = capabilityManager.evaluateAction("climate_control", "air recirculation")
+        if (!result.success) return result
         _climateState.value = _climateState.value.copy(isRecirculationActive = active)
-        return capabilityManager.evaluateAction("climate_control", "air recirculation")
+        return result
     }
 }

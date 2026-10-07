@@ -59,6 +59,7 @@ interface DriveMatePreferencesRepository {
     suspend fun updateHeyDriveMateEnabled(enabled: Boolean)
     suspend fun updateWakeWordSensitivity(sensitivity: Float)
     suspend fun updateDemoModeEnabled(enabled: Boolean)
+    suspend fun updateAutoGreetingOnAndroidAuto(enabled: Boolean)
     suspend fun resetToDefaults()
 }
 
@@ -80,6 +81,7 @@ class DriveMatePreferencesRepositoryImpl(
         val VOICE_NAME = stringPreferencesKey("voice_name")
         val AUTO_MONITOR_BT = booleanPreferencesKey("auto_monitor_bluetooth")
         val TARGET_BT_NAME = stringPreferencesKey("target_bluetooth_name")
+        val AUTO_GREETING_AA = booleanPreferencesKey("auto_greeting_on_android_auto")
 
         // V2 Keys
         val INCLUDE_WEATHER = booleanPreferencesKey("include_weather_in_greeting")
@@ -131,6 +133,7 @@ class DriveMatePreferencesRepositoryImpl(
                 vehicleRegistrationNumber = preferences[PreferencesKeys.VEHICLE_REGISTRATION] ?: "MH 28 BW 1624",
                 vehiclePhotoUri = preferences[PreferencesKeys.VEHICLE_PHOTO_URI],
                 greetingEnabled = preferences[PreferencesKeys.GREETING_ENABLED] ?: true,
+                autoGreetingOnAndroidAuto = preferences[PreferencesKeys.AUTO_GREETING_AA] ?: false,
                 greetingStyle = GreetingStyle.fromName(preferences[PreferencesKeys.GREETING_STYLE]),
                 customGreetingTemplate = preferences[PreferencesKeys.CUSTOM_GREETING_TEMPLATE]
                     ?: "Good {timeOfDay}, {name}. Welcome to your {brand} {model}.",
@@ -145,7 +148,7 @@ class DriveMatePreferencesRepositoryImpl(
                 weatherCityName = preferences[PreferencesKeys.WEATHER_CITY] ?: "",
                 weatherLatitude = preferences[PreferencesKeys.WEATHER_LAT] ?: 0.0,
                 weatherLongitude = preferences[PreferencesKeys.WEATHER_LON] ?: 0.0,
-                odometerKm = preferences[PreferencesKeys.ODOMETER_DOUBLE]
+                manualOdometerKm = preferences[PreferencesKeys.ODOMETER_DOUBLE]
                     ?: preferences[PreferencesKeys.ODOMETER_KM]?.toDouble()
                     ?: 12500.0,
                 nextServiceKm = preferences[PreferencesKeys.NEXT_SERVICE_KM] ?: 15000,
@@ -309,6 +312,12 @@ class DriveMatePreferencesRepositoryImpl(
         }
     }
 
+    override suspend fun updateAutoGreetingOnAndroidAuto(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.AUTO_GREETING_AA] = enabled
+        }
+    }
+
     override suspend fun updateVehicleRegistration(regNumber: String) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.VEHICLE_REGISTRATION] = DriveMateSettings.normalizeRegistration(regNumber)
@@ -352,13 +361,7 @@ class DriveMatePreferencesRepositoryImpl(
             preferences[PreferencesKeys.TODAY_DISTANCE] = currentDistance + distanceKm
             preferences[PreferencesKeys.TODAY_DURATION] = currentDuration + durationMinutes
 
-            // Update odometer with precise fractional distance (zero truncation!)
-            val currentOdometer = preferences[PreferencesKeys.ODOMETER_DOUBLE]
-                ?: preferences[PreferencesKeys.ODOMETER_KM]?.toDouble()
-                ?: 12500.0
-            val newOdometer = currentOdometer + distanceKm.toDouble()
-            preferences[PreferencesKeys.ODOMETER_DOUBLE] = newOdometer
-            preferences[PreferencesKeys.ODOMETER_KM] = newOdometer.toInt()
+            // Strict Data Honesty: GPS distance accumulates in trip stats only, never modifying the vehicle odometer
         }
     }
 

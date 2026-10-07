@@ -8,7 +8,11 @@ import androidx.car.app.model.ItemList
 import androidx.car.app.model.ListTemplate
 import androidx.car.app.model.Row
 import androidx.car.app.model.Template
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 import com.shatrughna.drivemate.DriveMateApplication
+import com.shatrughna.drivemate.core.telemetry.TelemetryAvailability
+import com.shatrughna.drivemate.core.telemetry.VehicleTelemetry
 import com.shatrughna.drivemate.data.model.DriveMateSettings
 import com.shatrughna.drivemate.data.model.WeatherInfo
 import com.shatrughna.drivemate.util.AppLogger
@@ -16,25 +20,37 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
  * Primary Android Auto Dashboard Screen.
- * Driver-safe, glanceable, and voice-first interface built with official AndroidX Car App Library templates.
+ * Driver-safe, glanceable, and push-to-talk interface built with official AndroidX Car App Library templates.
+ * Binds lifecycles strictly to Screen.lifecycle to avoid background leaks.
  */
 class DriveMateHomeScreen(carContext: CarContext) : Screen(carContext) {
 
     private val app = carContext.applicationContext as DriveMateApplication
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var dataLoadJob: Job? = null
+    private var telemetryJob: Job? = null
 
     private var currentSettings: DriveMateSettings = DriveMateSettings()
     private var currentWeather: WeatherInfo = WeatherInfo.unavailable()
-    private var isDataLoaded = false
+    private var currentTelemetry: VehicleTelemetry = VehicleTelemetry()
 
     init {
+        lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onDestroy(owner: LifecycleOwner) {
+                AppLogger.d(AppLogger.TAG_ANDROID_AUTO, "DriveMateHomeScreen onDestroy - cancelling scope")
+                scope.cancel()
+            }
+        })
+
         loadData()
+        observeTelemetry()
     }
 
     private fun loadData() {
@@ -51,9 +67,18 @@ class DriveMateHomeScreen(carContext: CarContext) : Screen(carContext) {
                     )
                 }
             } catch (e: Exception) {
-                AppLogger.w(AppLogger.Tag.APP, "Error loading car dashboard data: ${e.message}")
+                AppLogger.w(AppLogger.TAG_ANDROID_AUTO, "Error loading car dashboard data: ${e.message}")
             } finally {
-                isDataLoaded = true
+                invalidate()
+            }
+        }
+    }
+
+    private fun observeTelemetry() {
+        telemetryJob?.cancel()
+        telemetryJob = scope.launch {
+            app.vehicleTelemetryRepository.telemetry.collectLatest { telemetry ->
+                currentTelemetry = telemetry
                 invalidate()
             }
         }
@@ -63,18 +88,42 @@ class DriveMateHomeScreen(carContext: CarContext) : Screen(carContext) {
         val listBuilder = ItemList.Builder()
         val stats = app.tripTracker.tripStats.value
 
-        // 1. Voice Assistant Quick Action Item
+        // 1. Voice Assistant Quick Action Item (Truthful push-to-talk, no continuous wake-word)
         listBuilder.addItem(
             Row.Builder()
                 .setTitle("🎙️ Ask DriveMate")
-                .addText("Tap to speak or say \"Hey DriveMate\"")
+                .addText("Push-to-talk • Tap to speak")
                 .setOnClickListener {
                     screenManager.push(CarVoiceAssistantScreen(carContext))
                 }
                 .build()
         )
 
-        // 2. Search Destination (Categories)
+        // 2. Real Vehicle Telemetry: Speed & Authoritative Odometer
+        val speedStr = when {
+            currentTelemetry.speedAvailability == TelemetryAvailability.LIVE && currentTelemetry.speedKmh != null ->
+                "${currentTelemetry.speedKmh?.toInt()} km/h (${currentTelemetry.speedSource.displayName})"
+            currentTelemetry.speedKmh != null ->
+                "${currentTelemetry.speedKmh?.toInt()} km/h"
+            else -> "Vehicle Idle"
+        }
+        val odoStr = when {
+            currentTelemetry.isAuthoritativeOdometer ->
+                "${String.format("%,.1f", currentTelemetry.vehicleOdometerKm)} km (Car Odometer)"
+            else ->
+                "${String.format("%,.1f", currentTelemetry.manualOdometerKm)} km (Calibrated)"
+        }
+        listBuilder.addItem(
+            Row.Builder()
+                .setTitle("⚡ Speed & Odometer")
+                .addText("$speedStr • $odoStr")
+                .setOnClickListener {
+                    screenManager.push(CarTripStatusScreen(carContext))
+                }
+                .build()
+        )
+
+        // 3. Search Destination (Categories)
         listBuilder.addItem(
             Row.Builder()
                 .setTitle("📍 Search Destination")
@@ -85,7 +134,7 @@ class DriveMateHomeScreen(carContext: CarContext) : Screen(carContext) {
                 .build()
         )
 
-        // 3. Recent Destinations
+        // 4. Recent Destinations
         listBuilder.addItem(
             Row.Builder()
                 .setTitle("🕘 Recent Destinations")
@@ -96,24 +145,15 @@ class DriveMateHomeScreen(carContext: CarContext) : Screen(carContext) {
                 .build()
         )
 
-        // 4. Suggested For You
-        listBuilder.addItem(
-            Row.Builder()
-                .setTitle("⭐ Suggested For You")
-                .addText("Contextual suggestions & saved shortcuts")
-                .setOnClickListener {
-                    screenManager.push(CarSuggestedDestinationsScreen(carContext, currentSettings))
-                }
-                .build()
-        )
-
-        // 5. Trip Statistics Row
+        // 5. Trip Statistics & Maintenance
         val tripMins = stats.activeTripDurationSeconds / 60
         val tripDist = String.format("%.1f", stats.activeTripDistanceKm)
+        val remainingService = (currentSettings.nextServiceKm - currentTelemetry.effectiveOdometerKm).coerceAtLeast(0.0)
+        val serviceText = "${String.format("%,.0f", remainingService)} km to service"
         listBuilder.addItem(
             Row.Builder()
-                .setTitle("🚗 Trip & Vehicle Status")
-                .addText("$tripDist km driven • $tripMins min active")
+                .setTitle("🚗 Current Drive: $tripDist km")
+                .addText("$tripMins min active (GPS) • $serviceText")
                 .setOnClickListener {
                     screenManager.push(CarTripStatusScreen(carContext))
                 }

@@ -52,27 +52,29 @@ class VehicleCapabilitiesTest {
     }
 
     @Test
-    fun testClimateProviderCompanionStateAdjustment() {
+    fun testClimateProviderReadOnlyProtection() {
         val resTemp = climateProvider.setTemperature(24.5f)
         assertFalse(resTemp.success) // Direct CAN actuation is false
-        assertEquals(24.5f, climateProvider.climateState.value.targetTemperatureCelsius, 0.01f)
+        // State remains protected at default 22.0f because direct control is unsupported
+        assertEquals(22.0f, climateProvider.climateState.value.targetTemperatureCelsius, 0.01f)
 
         val resFan = climateProvider.setFanSpeed(5)
         assertFalse(resFan.success)
-        assertEquals(5, climateProvider.climateState.value.fanSpeed)
+        assertEquals(3, climateProvider.climateState.value.fanSpeed) // Default fan speed
 
-        climateProvider.setAcEnabled(false)
-        assertFalse(climateProvider.climateState.value.isAcOn)
+        val resAc = climateProvider.setAcEnabled(false)
+        assertFalse(resAc.success)
+        assertTrue(climateProvider.climateState.value.isAcOn) // Default AC remains true
     }
 
     @Test
-    fun testSupportedParkingSensors() {
+    fun testParkingSensorsCapabilityHonesty() {
         val parkingCap = manager.getCapability("parking_sensors")
         assertNotNull(parkingCap)
-        assertEquals(CapabilityStatus.SUPPORTED, parkingCap?.status)
+        assertEquals(CapabilityStatus.NOT_SUPPORTED_BY_VEHICLE, parkingCap?.status)
 
         val result = manager.evaluateAction("parking_sensors", "parking sensors")
-        assertTrue(result.success)
-        assertEquals(CapabilityStatus.SUPPORTED, result.status)
+        assertFalse(result.success)
+        assertEquals(CapabilityStatus.NOT_SUPPORTED_BY_VEHICLE, result.status)
     }
 }

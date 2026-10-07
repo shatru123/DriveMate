@@ -39,6 +39,8 @@ import com.shatrughna.drivemate.voice.wakeword.WakeWordManager
 import com.shatrughna.drivemate.voice.wakeword.WakeWordManagerImpl
 import com.shatrughna.drivemate.weather.OpenMeteoWeatherRepository
 import com.shatrughna.drivemate.weather.WeatherRepository
+import com.shatrughna.drivemate.core.telemetry.VehicleDataCoordinator
+import com.shatrughna.drivemate.core.telemetry.VehicleTelemetryRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -129,6 +131,12 @@ class DriveMateApplication : Application() {
     lateinit var biometricSecurityManager: com.shatrughna.drivemate.core.security.BiometricSecurityManager
         private set
 
+    lateinit var vehicleDataCoordinator: VehicleDataCoordinator
+        private set
+
+    lateinit var vehicleTelemetryRepository: VehicleTelemetryRepository
+        private set
+
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate() {
@@ -207,8 +215,13 @@ class DriveMateApplication : Application() {
             ttsManager = ttsManager,
             sessionManager = sessionManager,
             preferencesRepository = preferencesRepository,
-            audioCoordinator = audioInputCoordinator
+            audioCoordinator = audioInputCoordinator,
+            carConnectionManager = carConnectionManager
         )
+
+        // DriveMate V6 Vehicle Telemetry Pipeline
+        vehicleDataCoordinator = VehicleDataCoordinator()
+        vehicleTelemetryRepository = VehicleTelemetryRepository(vehicleDataCoordinator, preferencesRepository)
 
         // Session Lifecycle Sync: Start/Stop Foreground Service and release mic on disconnect
         applicationScope.launch {
@@ -219,11 +232,22 @@ class DriveMateApplication : Application() {
                 } else {
                     AppLogger.i(AppLogger.Tag.SESSION, "Stopping DriveMateSessionService and releasing voice resources.")
                     DriveMateSessionService.stopService(this@DriveMateApplication)
+                    vehicleDataCoordinator.detachCarContext()
                     audioInputCoordinator.releaseAll()
                     voiceAssistantManager.release()
                     wakeWordEngine.stop()
                     ttsManager.stop()
                 }
+            }
+        }
+
+        // Link GPS trip statistics with VehicleDataCoordinator without mutating manual odometer
+        applicationScope.launch {
+            tripTracker.tripStats.collectLatest { stats ->
+                vehicleDataCoordinator.updateTripGpsDistance(stats.activeTripDistanceKm.toDouble())
+                val hours = (stats.activeTripDurationSeconds / 3600f).coerceAtLeast(0.001f)
+                val calculatedGpsSpeed = if (stats.activeTripDistanceKm > 0.05f) (stats.activeTripDistanceKm / hours) else 0f
+                vehicleDataCoordinator.updateGpsSpeed(calculatedGpsSpeed)
             }
         }
 
