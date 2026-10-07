@@ -64,7 +64,13 @@ class AudioInputCoordinatorImpl : AudioInputCoordinator {
     override val activeOwner: StateFlow<AudioResourceOwner> = _activeOwner.asStateFlow()
 
     override suspend fun requestWakeWordListening(): Boolean = mutex.withLock {
-        // Only grant wake word listening if idle or coming from processing/TTS
+        // Strictly reject wake word listening while TTS is actively speaking
+        if (_activeOwner.value == AudioResourceOwner.TTS_PLAYBACK) {
+            AppLogger.w(AppLogger.Tag.APP, "AudioCoordinator: Denied wake word listening because TTS_PLAYBACK is active")
+            return false
+        }
+
+        // Only grant wake word listening if idle, none, error or coming from processing
         if (_activeOwner.value == AudioResourceOwner.NONE ||
             _state.value == AudioOwnerState.PROCESSING ||
             _state.value == AudioOwnerState.IDLE ||
@@ -99,11 +105,17 @@ class AudioInputCoordinatorImpl : AudioInputCoordinator {
     }
 
     override suspend fun requestCommandListening(): Boolean = mutex.withLock {
-        // Command listening allowed if wake word was detected or manually requested while idle/error
+        // Strictly reject command listening while TTS is actively playing audio to prevent acoustic feedback
+        if (_activeOwner.value == AudioResourceOwner.TTS_PLAYBACK) {
+            AppLogger.w(AppLogger.Tag.APP, "AudioCoordinator: Denied command listening because TTS_PLAYBACK is active")
+            return false
+        }
+
+        // Command listening allowed if wake word was detected or manually requested while idle/none/error
         if (_activeOwner.value == AudioResourceOwner.NONE ||
             _state.value == AudioOwnerState.WAKE_WORD_DETECTED ||
             _state.value == AudioOwnerState.IDLE ||
-            _state.value == AudioOwnerState.TTS_RESPONSE
+            _state.value == AudioOwnerState.ERROR
         ) {
             _activeOwner.value = AudioResourceOwner.VOICE_ASSISTANT_COMMAND
             _state.value = AudioOwnerState.COMMAND_LISTENING

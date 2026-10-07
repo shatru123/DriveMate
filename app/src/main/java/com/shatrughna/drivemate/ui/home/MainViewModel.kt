@@ -165,9 +165,13 @@ class MainViewModel(
     val timelineItems: StateFlow<List<VehicleTimelineItem>> = timelineRepository?.timelineItems
         ?: MutableStateFlow(emptyList())
 
+    // V4 Recent Trips Flow
+    val recentTrips: StateFlow<List<TripReport>> = tripHistoryRepository?.recentTrips
+        ?: MutableStateFlow(emptyList())
+
     // V4 Monthly Driving Analytics
     val monthlyDrivingSummary: StateFlow<MonthlyDrivingSummary> = combine(
-        tripHistoryRepository?.recentTrips ?: MutableStateFlow(emptyList())
+        recentTrips
     ) { (trips) ->
         DrivingAnalyticsEngine.computeMonthlySummary(trips)
     }.stateIn(
@@ -373,6 +377,37 @@ class MainViewModel(
             }
         } catch (e: Exception) {
             AppLogger.e(AppLogger.Tag.APP, "Failed to launch walking navigation: ${e.message}", e)
+        }
+    }
+
+    fun setDemoMode(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.updateDemoModeEnabled(enabled)
+            if (enabled) {
+                documentVaultRepository?.seedDemoDocuments()
+                maintenanceRepository?.seedDemoMaintenance()
+                expenseRepository?.seedDemoExpenses()
+            } else {
+                documentVaultRepository?.clearDemoDocuments()
+                maintenanceRepository?.clearDemoMaintenance()
+                expenseRepository?.clearDemoExpenses()
+            }
+        }
+    }
+
+    fun seedDemoData() {
+        viewModelScope.launch {
+            documentVaultRepository?.seedDemoDocuments()
+            maintenanceRepository?.seedDemoMaintenance()
+            expenseRepository?.seedDemoExpenses()
+        }
+    }
+
+    fun clearDemoData() {
+        viewModelScope.launch {
+            documentVaultRepository?.clearDemoDocuments()
+            maintenanceRepository?.clearDemoMaintenance()
+            expenseRepository?.clearDemoExpenses()
         }
     }
 

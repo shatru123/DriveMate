@@ -278,6 +278,20 @@ private fun WeeklyBarChart(
     metrics: List<com.shatrughna.drivemate.data.analytics.WeeklyDrivingMetric>,
     modifier: Modifier = Modifier
 ) {
+    if (metrics.isEmpty()) {
+        Box(
+            modifier = modifier,
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "No weekly driving activity recorded yet",
+                style = MaterialTheme.typography.bodySmall,
+                color = TextMuted
+            )
+        }
+        return
+    }
+
     val maxDistance = remember(metrics) {
         (metrics.maxOfOrNull { it.distanceKm } ?: 100f).coerceAtLeast(10f)
     }

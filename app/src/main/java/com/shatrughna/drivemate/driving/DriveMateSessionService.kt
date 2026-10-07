@@ -67,6 +67,7 @@ class DriveMateSessionService : Service() {
     }
 
     private var serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var isCollectingSession = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -100,7 +101,8 @@ class DriveMateSessionService : Service() {
         }
 
         val app = application as? DriveMateApplication
-        if (app != null) {
+        if (app != null && !isCollectingSession) {
+            isCollectingSession = true
             serviceScope.launch {
                 app.sessionManager.isSessionActive.collectLatest { isActive ->
                     if (!isActive) {
@@ -130,6 +132,7 @@ class DriveMateSessionService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         isServiceRunning = false
+        isCollectingSession = false
         serviceScope.cancel()
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
         notificationManager?.cancel(NOTIFICATION_ID)

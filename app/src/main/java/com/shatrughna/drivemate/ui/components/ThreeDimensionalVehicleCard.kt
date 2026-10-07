@@ -2,6 +2,7 @@ package com.shatrughna.drivemate.ui.components
 
 import android.graphics.BitmapFactory
 import android.net.Uri
+import com.shatrughna.drivemate.util.VehiclePhotoLoader
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -127,28 +128,7 @@ fun ThreeDimensionalVehicleCard(
 
     // Load custom vehicle photo if configured
     val vehicleBitmap by produceState<ImageBitmap?>(initialValue = null, settings.vehiclePhotoUri) {
-        val uriStr = settings.vehiclePhotoUri
-        if (uriStr.isNullOrBlank()) {
-            value = null
-            return@produceState
-        }
-        value = withContext(Dispatchers.IO) {
-            try {
-                if (uriStr.startsWith("content://")) {
-                    val uri = Uri.parse(uriStr)
-                    context.contentResolver.openInputStream(uri)?.use { stream ->
-                        BitmapFactory.decodeStream(stream)?.asImageBitmap()
-                    }
-                } else {
-                    val file = if (uriStr.startsWith("file://")) File(Uri.parse(uriStr).path ?: "") else File(uriStr)
-                    if (file.exists()) {
-                        BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap()
-                    } else null
-                }
-            } catch (e: Exception) {
-                null
-            }
-        }
+        value = VehiclePhotoLoader.loadOptimizedBitmap(context, settings.vehiclePhotoUri, maxDimension = 1080)
     }
 
     val effectiveRotationX = if (isInspectionMode) 0f else tiltX.value
@@ -261,24 +241,49 @@ fun ThreeDimensionalVehicleCard(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Hero Visual: Photo with ambient glow & vignette, or Stylized 3D Tata Nexon Graphic
+                // Hero Visual: Photo with dual-layer landscape preservation & ambient glow, or Stylized 3D Tata Nexon Graphic
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(150.dp)
+                        .height(160.dp)
                         .clip(RoundedCornerShape(18.dp))
                         .background(Color(0xFF090E17))
                         .border(1.dp, Brush.horizontalGradient(listOf(NexonCyanPrimary.copy(alpha = 0.35f), DarkBorder)), RoundedCornerShape(18.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     if (vehicleBitmap != null) {
+                        // Layer 1: Ambient background fill preserving visual depth without letterboxing voids
+                        Image(
+                            bitmap = vehicleBitmap!!,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            alpha = 0.25f,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.radialGradient(
+                                        colors = listOf(
+                                            Color.Transparent,
+                                            Color(0xD9090E17)
+                                        )
+                                    )
+                                )
+                        )
+
+                        // Layer 2: 100% complete car display with ContentScale.Fit (no cropping of vehicle body)
                         Image(
                             bitmap = vehicleBitmap!!,
                             contentDescription = "Tata Nexon Photo",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize()
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
                         )
-                        // Smooth vignette overlay
+
+                        // Smooth vignette overlay for automotive card integration
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -286,8 +291,8 @@ fun ThreeDimensionalVehicleCard(
                                     Brush.verticalGradient(
                                         colors = listOf(
                                             Color.Transparent,
-                                            Color(0x22000000),
-                                            Color(0xAA090E17)
+                                            Color(0x10000000),
+                                            Color(0x77090E17)
                                         )
                                     )
                                 )
@@ -298,8 +303,8 @@ fun ThreeDimensionalVehicleCard(
                                 .align(Alignment.TopEnd)
                                 .padding(10.dp)
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(Color(0x99000000))
-                                .border(0.6.dp, NexonCyanPrimary.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                                .background(Color(0xCC090E17))
+                                .border(0.6.dp, NexonCyanPrimary.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Text(

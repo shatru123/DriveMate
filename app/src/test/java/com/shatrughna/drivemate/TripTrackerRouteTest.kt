@@ -148,6 +148,7 @@ class TripTrackerRouteTest {
         override suspend fun updateVoiceAssistantEnabled(enabled: Boolean) {}
         override suspend fun updateHeyDriveMateEnabled(enabled: Boolean) {}
         override suspend fun updateWakeWordSensitivity(sensitivity: Float) {}
+        override suspend fun updateDemoModeEnabled(enabled: Boolean) {}
         override suspend fun resetToDefaults() {}
     }
 

@@ -24,6 +24,8 @@ interface ExpenseRepository {
     suspend fun addExpense(expense: VehicleExpense)
     suspend fun deleteExpense(id: String)
     fun getSummary(currentOdometerKm: Double): ExpenseSummary
+    suspend fun seedDemoExpenses()
+    suspend fun clearDemoExpenses()
 }
 
 class ExpenseRepositoryImpl(
@@ -55,9 +57,8 @@ class ExpenseRepositoryImpl(
 
     private suspend fun loadFromDisk() = withContext(Dispatchers.IO) {
         if (!storageFile.exists()) {
-            val defaults = createSampleExpenses()
-            _expenses.value = defaults
-            saveToDisk(defaults)
+            // Production first launch: Start completely empty
+            _expenses.value = emptyList()
             return@withContext
         }
 
@@ -84,10 +85,14 @@ class ExpenseRepositoryImpl(
             }
             _expenses.value = list
         } catch (e: Exception) {
-            AppLogger.e(AppLogger.Tag.APP, "Failed to load expenses from disk", e)
-            val fallback = createSampleExpenses()
-            _expenses.value = fallback
-            saveToDisk(fallback)
+            AppLogger.e(AppLogger.Tag.APP, "Failed to load expenses from disk: corrupted file", e)
+            try {
+                val backupFile = File(storageDir, "expenses.json.corrupt.${System.currentTimeMillis()}")
+                storageFile.renameTo(backupFile)
+            } catch (backupEx: Exception) {
+                AppLogger.e(AppLogger.Tag.APP, "Failed to rename corrupt expenses file", backupEx)
+            }
+            _expenses.value = emptyList()
         }
     }
 
@@ -162,12 +167,27 @@ class ExpenseRepositoryImpl(
         }
     }
 
-    private fun createSampleExpenses(): List<VehicleExpense> {
+    override suspend fun seedDemoExpenses() = withContext(Dispatchers.IO) {
+        val current = _expenses.value.filterNot { it.id.startsWith("demo_") || it.notes.startsWith("[DEMO]") }.toMutableList()
+        current.addAll(0, createDemoExpenses())
+        _expenses.value = current
+        saveToDisk(current)
+        AppLogger.i(AppLogger.Tag.APP, "Seeded demo vehicle expenses.")
+    }
+
+    override suspend fun clearDemoExpenses() = withContext(Dispatchers.IO) {
+        val filtered = _expenses.value.filterNot { it.id.startsWith("demo_") || it.notes.startsWith("[DEMO]") }
+        _expenses.value = filtered
+        saveToDisk(filtered)
+        AppLogger.i(AppLogger.Tag.APP, "Cleared demo vehicle expenses.")
+    }
+
+    private fun createDemoExpenses(): List<VehicleExpense> {
         val now = System.currentTimeMillis()
         val oneDay = TimeUnit.DAYS.toMillis(1)
         return listOf(
             VehicleExpense(
-                id = "exp_fuel_1",
+                id = "demo_exp_fuel_1",
                 category = ExpenseCategory.FUEL,
                 amount = 3500.0,
                 dateMillis = now - (2 * oneDay),
@@ -175,33 +195,33 @@ class ExpenseRepositoryImpl(
                 fuelLiters = 33.5,
                 fuelPricePerLiter = 104.5,
                 location = "Indian Oil Petrol Pump, Highway 48",
-                notes = "Full tank petrol"
+                notes = "[DEMO] Full tank petrol"
             ),
             VehicleExpense(
-                id = "exp_toll_1",
+                id = "demo_exp_toll_1",
                 category = ExpenseCategory.TOLL,
                 amount = 265.0,
                 dateMillis = now - (3 * oneDay),
                 odometerKm = 24710.0,
                 location = "Khed Shivapur Toll Plaza",
-                notes = "FASTag auto-debit"
+                notes = "[DEMO] FASTag auto-debit"
             ),
             VehicleExpense(
-                id = "exp_service_1",
+                id = "demo_exp_service_1",
                 category = ExpenseCategory.SERVICE,
                 amount = 4850.0,
                 dateMillis = now - (150 * oneDay),
                 odometerKm = 15000.0,
                 location = "Tata Motors Cars Workshop",
-                notes = "3rd Periodic Service"
+                notes = "[DEMO] 3rd Periodic Service"
             ),
             VehicleExpense(
-                id = "exp_parking_1",
+                id = "demo_exp_parking_1",
                 category = ExpenseCategory.PARKING,
                 amount = 120.0,
                 dateMillis = now - (8 * oneDay),
                 location = "Phoenix Marketcity Basement",
-                notes = "Weekend mall parking"
+                notes = "[DEMO] Weekend mall parking"
             )
         )
     }

@@ -160,6 +160,7 @@ fun DriveMateAppNavigation(
     val timelineItems by mainViewModel.timelineItems.collectAsStateWithLifecycle()
     val monthlyDrivingSummary by mainViewModel.monthlyDrivingSummary.collectAsStateWithLifecycle()
     val topInsight by mainViewModel.topInsight.collectAsStateWithLifecycle()
+    val recentTrips by mainViewModel.recentTrips.collectAsStateWithLifecycle()
 
     AnimatedContent(
         targetState = currentScreen,
@@ -258,8 +259,8 @@ fun DriveMateAppNavigation(
             Screen.DrivingAnalytics -> {
                 DrivingAnalyticsScreen(
                     summary = monthlyDrivingSummary,
-                    trips = emptyList(),
-                    onNavigateBack = { currentScreen = Screen.Dashboard }
+                    trips = recentTrips,
+                    onNavigateBack = { currentScreen = Screen.MyCar }
                 )
             }
             Screen.VehicleTimeline -> {
@@ -288,6 +289,9 @@ fun DriveMateAppNavigation(
             Screen.Settings -> {
                 SettingsScreen(
                     viewModel = settingsViewModel,
+                    onToggleDemoMode = mainViewModel::setDemoMode,
+                    onSeedDemoData = mainViewModel::seedDemoData,
+                    onClearDemoData = mainViewModel::clearDemoData,
                     onNavigateBack = { currentScreen = Screen.Dashboard }
                 )
             }

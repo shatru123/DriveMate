@@ -22,6 +22,8 @@ interface DocumentVaultRepository {
     suspend fun addOrUpdateDocument(document: VehicleDocument)
     suspend fun deleteDocument(id: String)
     fun getDocument(id: String): VehicleDocument?
+    suspend fun seedDemoDocuments()
+    suspend fun clearDemoDocuments()
 }
 
 class DocumentVaultRepositoryImpl(
@@ -53,9 +55,8 @@ class DocumentVaultRepositoryImpl(
 
     private suspend fun loadFromDisk() = withContext(Dispatchers.IO) {
         if (!storageFile.exists()) {
-            val defaults = createSampleDocuments()
-            _documents.value = defaults
-            saveToDisk(defaults)
+            // Production first launch: Start completely empty
+            _documents.value = emptyList()
             return@withContext
         }
         try {
@@ -83,10 +84,14 @@ class DocumentVaultRepositoryImpl(
             }
             _documents.value = list
         } catch (e: Exception) {
-            AppLogger.e(AppLogger.Tag.APP, "Failed to load document vault", e)
-            val fallback = createSampleDocuments()
-            _documents.value = fallback
-            saveToDisk(fallback)
+            AppLogger.e(AppLogger.Tag.APP, "Failed to load document vault: corrupted file", e)
+            try {
+                val backupFile = File(storageDir, "vehicle_vault.json.corrupt.${System.currentTimeMillis()}")
+                storageFile.renameTo(backupFile)
+            } catch (backupEx: Exception) {
+                AppLogger.e(AppLogger.Tag.APP, "Failed to rename corrupt vault file", backupEx)
+            }
+            _documents.value = emptyList()
         }
     }
 
@@ -139,46 +144,61 @@ class DocumentVaultRepositoryImpl(
         }
     }
 
-    private fun createSampleDocuments(): List<VehicleDocument> {
+    override suspend fun seedDemoDocuments() = withContext(Dispatchers.IO) {
+        val current = _documents.value.filterNot { it.id.startsWith("demo_") || it.title.startsWith("[DEMO]") }.toMutableList()
+        current.addAll(0, createDemoDocuments())
+        _documents.value = current
+        saveToDisk(current)
+        AppLogger.i(AppLogger.Tag.APP, "Seeded demo vehicle documents into vault.")
+    }
+
+    override suspend fun clearDemoDocuments() = withContext(Dispatchers.IO) {
+        val filtered = _documents.value.filterNot { it.id.startsWith("demo_") || it.title.startsWith("[DEMO]") }
+        _documents.value = filtered
+        saveToDisk(filtered)
+        AppLogger.i(AppLogger.Tag.APP, "Cleared all demo documents from vault.")
+    }
+
+    private fun createDemoDocuments(): List<VehicleDocument> {
         val now = System.currentTimeMillis()
         val oneDay = TimeUnit.DAYS.toMillis(1)
         return listOf(
             VehicleDocument(
-                id = "doc_rc_nexon",
-                title = "Tata Nexon RC Smart Card",
+                id = "demo_doc_rc",
+                title = "[DEMO] Tata Nexon RC Smart Card",
                 type = DocumentType.REGISTRATION_CERTIFICATE,
                 documentNumber = "MH 28 BW 1624",
                 issuingAuthority = "RTO Buldhana, Maharashtra",
                 issueDateMillis = now - (365 * oneDay),
-                expiryDateMillis = now + (3650 * oneDay), // Valid 10 years
+                expiryDateMillis = now + (3650 * oneDay),
                 notes = "Tata Nexon Creative+ S (Creative Plus Sunroof)",
                 isSensitive = true
             ),
             VehicleDocument(
-                id = "doc_insurance_nexon",
-                title = "Comprehensive Motor Insurance",
+                id = "demo_doc_insurance",
+                title = "[DEMO] Comprehensive Motor Insurance",
                 type = DocumentType.INSURANCE,
                 documentNumber = "POL-TATA-2026-98124",
                 issuingAuthority = "Tata AIG General Insurance",
                 issueDateMillis = now - (60 * oneDay),
-                expiryDateMillis = now + (305 * oneDay), // Valid ~10 months
+                expiryDateMillis = now + (305 * oneDay),
                 notes = "Zero Dep + Engine Protect + Roadside Assistance",
                 isSensitive = true
             ),
             VehicleDocument(
-                id = "doc_puc_nexon",
-                title = "Pollution Under Control (PUC)",
+                id = "demo_doc_puc",
+                title = "[DEMO] Pollution Under Control (PUC)",
                 type = DocumentType.PUC,
                 documentNumber = "MH28-PUC-2026-443",
                 issuingAuthority = "Govt. of Maharashtra Transport",
                 issueDateMillis = now - (160 * oneDay),
-                expiryDateMillis = now + (20 * oneDay), // Expiring in 20 days (Active alert!)
+                expiryDateMillis = now + (20 * oneDay),
                 notes = "Emission test compliant (BS6 Phase 2)",
                 isSensitive = false
             ),
             VehicleDocument(
-                id = "doc_dl_shatrughna",
-                title = "Driving Licence",
+                id = "demo_doc_dl",
+                title = "[DEMO] Driving Licence",
                 type = DocumentType.DRIVING_LICENCE,
                 documentNumber = "MH28 20190004521",
                 issuingAuthority = "Govt. of Maharashtra",

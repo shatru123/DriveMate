@@ -57,6 +57,11 @@ class AudioInputCoordinatorTest {
         assertFalse(deniedWakeWord)
         assertEquals(AudioResourceOwner.TTS_PLAYBACK, coordinator.activeOwner.value)
 
+        // Command listening request must ALSO be DENIED during TTS playback
+        val deniedCommandDuringTts = coordinator.requestCommandListening()
+        assertFalse(deniedCommandDuringTts)
+        assertEquals(AudioResourceOwner.TTS_PLAYBACK, coordinator.activeOwner.value)
+
         // Command request is permitted only after TTS finishes
         coordinator.onTtsCompleted()
         assertEquals(AudioResourceOwner.NONE, coordinator.activeOwner.value)

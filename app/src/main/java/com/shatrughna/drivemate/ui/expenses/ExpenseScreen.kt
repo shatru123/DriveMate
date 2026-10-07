@@ -297,7 +297,56 @@ fun ExpenseScreen(
                 }
             }
 
-            if (filteredExpenses.isEmpty()) {
+            if (expenses.isEmpty()) {
+                item {
+                    DriveMateCard {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(CircleShape)
+                                    .background(NexonAmberAccent.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.AccountBalanceWallet,
+                                    contentDescription = null,
+                                    tint = NexonAmberAccent,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                            Text(
+                                text = "No Expenses Logged Yet",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Track petrol fill-ups, Fastag tolls, parking fees, insurance renewals, and accessory costs for your Nexon. DriveMate calculates your real running cost per km.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Button(
+                                onClick = { showAddDialog = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = NexonAmberAccent),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.rememberPressScale()
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, tint = Color.Black)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Add First Expense", color = Color.Black, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            } else if (filteredExpenses.isEmpty()) {
                 item {
                     DriveMateCard {
                         Box(
@@ -316,6 +365,7 @@ fun ExpenseScreen(
                 }
             } else {
                 items(filteredExpenses, key = { it.id }) { item ->
+                    val isDemo = item.id.startsWith("demo_") || item.notes.contains("[DEMO]")
                     DriveMateCard {
                         Column(
                             modifier = Modifier
@@ -348,12 +398,32 @@ fun ExpenseScreen(
                                     }
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Column {
-                                        Text(
-                                            text = item.category.displayName,
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = TextPrimary
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            if (isDemo) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(6.dp))
+                                                        .background(NexonAmberAccent.copy(alpha = 0.18f))
+                                                        .border(0.8.dp, NexonAmberAccent.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "DEMO",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 9.sp,
+                                                        color = NexonAmberAccent
+                                                    )
+                                                }
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                            }
+                                            Text(
+                                                text = item.category.displayName,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = TextPrimary
+                                            )
+                                        }
                                         if (item.location.isNotBlank()) {
                                             Text(
                                                 text = item.location,

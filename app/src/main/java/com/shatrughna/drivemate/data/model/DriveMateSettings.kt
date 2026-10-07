@@ -44,7 +44,9 @@ data class DriveMateSettings(
     // Hands-Free Voice Assistant & Wake Word Settings
     val voiceAssistantEnabled: Boolean = true,
     val heyDriveMateEnabled: Boolean = true,
-    val wakeWordSensitivity: Float = 0.5f
+    val wakeWordSensitivity: Float = 0.5f,
+    // V5 Explicit Demo Data Mode
+    val isDemoModeEnabled: Boolean = false
 ) {
     val fullVehicleName: String
         get() = "$vehicleBrand $vehicleModel $vehicleVariant".trim()

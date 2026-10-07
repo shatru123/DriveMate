@@ -20,30 +20,28 @@ object DrivingAnalyticsEngine {
             calendar.get(Calendar.MONTH) == currentMonth && calendar.get(Calendar.YEAR) == currentYear
         }
 
-        // If no trips exist yet, provide realistic active companion metrics
+        // If no trips exist yet, return clean empty summary (No fabricated metrics)
         if (thisMonthTrips.isEmpty()) {
             return MonthlyDrivingSummary(
                 monthName = monthName,
-                totalDistanceKm = 485.4f,
-                totalTrips = 18,
-                totalDurationMinutes = 612L,
-                avgSpeedKmh = 47.6f,
-                estimatedFuelConsumedLiters = 28.5f,
-                avgEcoScore = 88,
-                weeklyMetrics = listOf(
-                    WeeklyDrivingMetric("W1", 112.5f, 4),
-                    WeeklyDrivingMetric("W2", 145.0f, 5),
-                    WeeklyDrivingMetric("W3", 98.4f, 4),
-                    WeeklyDrivingMetric("W4", 129.5f, 5)
-                )
+                totalDistanceKm = 0f,
+                totalTrips = 0,
+                totalDurationMinutes = 0L,
+                avgSpeedKmh = 0f,
+                estimatedFuelConsumedLiters = 0f,
+                avgEcoScore = 0,
+                weeklyMetrics = emptyList()
             )
         }
 
         val totalDist = thisMonthTrips.sumOf { it.distanceKm.toDouble() }.toFloat()
         val totalMinutes = thisMonthTrips.sumOf { it.durationMinutes }
-        val avgSpeed = if (thisMonthTrips.isNotEmpty()) {
+        // Distance-weighted average speed
+        val avgSpeed = if (totalDist > 0f) {
+            (thisMonthTrips.sumOf { it.distanceKm.toDouble() * it.avgSpeedKmh.toDouble() } / totalDist).toFloat()
+        } else {
             (thisMonthTrips.sumOf { it.avgSpeedKmh.toDouble() } / thisMonthTrips.size).toFloat()
-        } else 0f
+        }
         val fuelLiters = thisMonthTrips.sumOf { it.fuelConsumedLiters.toDouble() }.toFloat()
         val avgEco = if (thisMonthTrips.isNotEmpty()) {
             (thisMonthTrips.sumOf { it.ecoScore } / thisMonthTrips.size)

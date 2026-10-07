@@ -24,6 +24,8 @@ interface MaintenanceRepository {
     suspend fun addServiceRecord(record: ServiceRecord)
     suspend fun deleteServiceRecord(id: String)
     suspend fun updateSchedule(schedule: ServiceSchedule)
+    suspend fun seedDemoMaintenance()
+    suspend fun clearDemoMaintenance()
 }
 
 class MaintenanceRepositoryImpl(
@@ -58,16 +60,9 @@ class MaintenanceRepositoryImpl(
 
     private suspend fun loadFromDisk() = withContext(Dispatchers.IO) {
         if (!storageFile.exists()) {
-            val defaultRecords = createSampleRecords()
-            val defaultSchedule = ServiceSchedule(
-                intervalKm = 15000,
-                intervalMonths = 12,
-                lastServiceOdometerKm = 15000.0,
-                lastServiceDateMillis = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(150)
-            )
-            _serviceRecords.value = defaultRecords
-            _serviceSchedule.value = defaultSchedule
-            saveToDisk(defaultRecords, defaultSchedule)
+            // Production first launch: Start completely empty
+            _serviceRecords.value = emptyList()
+            _serviceSchedule.value = ServiceSchedule()
             return@withContext
         }
 
@@ -81,8 +76,8 @@ class MaintenanceRepositoryImpl(
                 _serviceSchedule.value = ServiceSchedule(
                     intervalKm = schedObj.optInt("intervalKm", 15000),
                     intervalMonths = schedObj.optInt("intervalMonths", 12),
-                    lastServiceOdometerKm = schedObj.optDouble("lastServiceOdometerKm", 15000.0),
-                    lastServiceDateMillis = schedObj.optLong("lastServiceDateMillis", System.currentTimeMillis())
+                    lastServiceOdometerKm = schedObj.optDouble("lastServiceOdometerKm", 0.0),
+                    lastServiceDateMillis = schedObj.optLong("lastServiceDateMillis", 0L)
                 )
             }
 
@@ -108,12 +103,15 @@ class MaintenanceRepositoryImpl(
             }
             _serviceRecords.value = list
         } catch (e: Exception) {
-            AppLogger.e(AppLogger.Tag.APP, "Failed to load maintenance records", e)
-            val fallbackRecords = createSampleRecords()
-            val fallbackSchedule = ServiceSchedule()
-            _serviceRecords.value = fallbackRecords
-            _serviceSchedule.value = fallbackSchedule
-            saveToDisk(fallbackRecords, fallbackSchedule)
+            AppLogger.e(AppLogger.Tag.APP, "Failed to load maintenance records: corrupted file", e)
+            try {
+                val backupFile = File(storageDir, "maintenance.json.corrupt.${System.currentTimeMillis()}")
+                storageFile.renameTo(backupFile)
+            } catch (backupEx: Exception) {
+                AppLogger.e(AppLogger.Tag.APP, "Failed to rename corrupt maintenance file", backupEx)
+            }
+            _serviceRecords.value = emptyList()
+            _serviceSchedule.value = ServiceSchedule()
         }
     }
 
@@ -184,13 +182,45 @@ class MaintenanceRepositoryImpl(
         }
     }
 
-    private fun createSampleRecords(): List<ServiceRecord> {
+    override suspend fun seedDemoMaintenance() = withContext(Dispatchers.IO) {
+        val current = _serviceRecords.value.filterNot { it.id.startsWith("demo_") || it.title.startsWith("[DEMO]") }.toMutableList()
+        val demoRecords = createDemoRecords()
+        current.addAll(0, demoRecords)
+        val demoSchedule = ServiceSchedule(
+            intervalKm = 15000,
+            intervalMonths = 12,
+            lastServiceOdometerKm = 15000.0,
+            lastServiceDateMillis = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(150)
+        )
+        _serviceRecords.value = current
+        _serviceSchedule.value = demoSchedule
+        saveToDisk(current, demoSchedule)
+        AppLogger.i(AppLogger.Tag.APP, "Seeded demo maintenance records.")
+    }
+
+    override suspend fun clearDemoMaintenance() = withContext(Dispatchers.IO) {
+        val filtered = _serviceRecords.value.filterNot { it.id.startsWith("demo_") || it.title.startsWith("[DEMO]") }
+        val latestOdo = filtered.maxOfOrNull { it.odometerKm } ?: 0.0
+        val latestDate = filtered.maxOfOrNull { it.dateMillis } ?: 0L
+        val resetSchedule = ServiceSchedule(
+            intervalKm = 15000,
+            intervalMonths = 12,
+            lastServiceOdometerKm = latestOdo,
+            lastServiceDateMillis = latestDate
+        )
+        _serviceRecords.value = filtered
+        _serviceSchedule.value = resetSchedule
+        saveToDisk(filtered, resetSchedule)
+        AppLogger.i(AppLogger.Tag.APP, "Cleared demo maintenance records.")
+    }
+
+    private fun createDemoRecords(): List<ServiceRecord> {
         val now = System.currentTimeMillis()
         val oneDay = TimeUnit.DAYS.toMillis(1)
         return listOf(
             ServiceRecord(
-                id = "rec_service_3",
-                title = "3rd Scheduled Periodic Service (15,000 km)",
+                id = "demo_rec_service_3",
+                title = "[DEMO] 3rd Scheduled Periodic Service (15,000 km)",
                 type = ServiceType.PERIODIC_SERVICE,
                 dateMillis = now - (150 * oneDay),
                 odometerKm = 15000.0,
@@ -200,8 +230,8 @@ class MaintenanceRepositoryImpl(
                 notes = "Engine oil change (Synthetic 0W-20), oil filter, wheel alignment, brake inspection"
             ),
             ServiceRecord(
-                id = "rec_service_2",
-                title = "2nd Periodic Inspection (7,500 km)",
+                id = "demo_rec_service_2",
+                title = "[DEMO] 2nd Periodic Inspection (7,500 km)",
                 type = ServiceType.PERIODIC_SERVICE,
                 dateMillis = now - (320 * oneDay),
                 odometerKm = 7500.0,
@@ -211,8 +241,8 @@ class MaintenanceRepositoryImpl(
                 notes = "Free service check, top-up fluids, general inspection"
             ),
             ServiceRecord(
-                id = "rec_service_1",
-                title = "1st Periodic Service (1,500 km / 1 Month)",
+                id = "demo_rec_service_1",
+                title = "[DEMO] 1st Periodic Service (1,500 km / 1 Month)",
                 type = ServiceType.PERIODIC_SERVICE,
                 dateMillis = now - (480 * oneDay),
                 odometerKm = 1450.0,

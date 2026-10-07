@@ -177,12 +177,39 @@ fun ParkingModeScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "ULTRASONIC PROXIMITY RADAR",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = TextMuted,
+                            letterSpacing = 1.sp
+                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(DarkSurfaceVariant)
+                                .border(0.8.dp, DarkBorder, RoundedCornerShape(6.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "NATIVE SENSORS ONLY",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = NexonAmberAccent
+                            )
+                        }
+                    }
+
                     Text(
-                        text = "360° ULTRASONIC PROXIMITY RADAR",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
+                        text = "Live ultrasonic proximity beeps & visual radar arcs are handled natively by your Tata Nexon cluster & touchscreen.",
+                        style = MaterialTheme.typography.bodySmall,
                         color = TextMuted,
-                        letterSpacing = 1.sp
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
 
                     // Native Canvas Radar representation
@@ -202,37 +229,23 @@ fun ParkingModeScreen(
                                 color = Color(0xFF1E2838),
                                 radius = size.width / 2,
                                 center = center,
-                                style = Stroke(width = 2.dp.toPx())
+                                style = Stroke(width = 1.5.dp.toPx())
                             )
 
                             // Middle radar ring
                             drawCircle(
-                                color = NexonCyanPrimary.copy(alpha = 0.25f),
+                                color = Color(0xFF1E2838),
                                 radius = size.width / 2.8f,
                                 center = center,
-                                style = Stroke(width = 2.dp.toPx())
+                                style = Stroke(width = 1.5.dp.toPx())
                             )
 
-                            // Rear Proximity Arc (Green safe buffer)
-                            drawArc(
-                                color = NexonEmeraldAccent,
-                                startAngle = 45f,
-                                sweepAngle = 90f,
-                                useCenter = false,
-                                topLeft = Offset(center.x - carW * 1.3f, center.y + carH * 0.2f),
-                                size = Size(carW * 2.6f, carH * 0.7f),
-                                style = Stroke(width = 4.dp.toPx())
-                            )
-
-                            // Front Proximity Arc (Safe buffer)
-                            drawArc(
-                                color = NexonCyanPrimary,
-                                startAngle = 225f,
-                                sweepAngle = 90f,
-                                useCenter = false,
-                                topLeft = Offset(center.x - carW * 1.3f, center.y - carH * 0.9f),
-                                size = Size(carW * 2.6f, carH * 0.7f),
-                                style = Stroke(width = 4.dp.toPx())
+                            // Inner radar ring
+                            drawCircle(
+                                color = Color(0xFF1E2838),
+                                radius = size.width / 4.2f,
+                                center = center,
+                                style = Stroke(width = 1.dp.toPx())
                             )
 
                             // Car silhouette
@@ -245,19 +258,19 @@ fun ParkingModeScreen(
 
                             // Car border
                             drawRoundRect(
-                                color = NexonCyanPrimary,
+                                color = NexonCyanPrimary.copy(alpha = 0.6f),
                                 topLeft = Offset(center.x - carW / 2, center.y - carH / 2),
                                 size = Size(carW, carH),
                                 cornerRadius = CornerRadius(16.dp.toPx(), 16.dp.toPx()),
-                                style = Stroke(width = 2.dp.toPx())
+                                style = Stroke(width = 1.5.dp.toPx())
                             )
 
                             // Windshield line
                             drawLine(
-                                color = NexonCyanPrimary.copy(alpha = 0.5f),
+                                color = NexonCyanPrimary.copy(alpha = 0.4f),
                                 start = Offset(center.x - carW / 3, center.y - carH / 4),
                                 end = Offset(center.x + carW / 3, center.y - carH / 4),
-                                strokeWidth = 3.dp.toPx()
+                                strokeWidth = 2.5.dp.toPx()
                             )
                         }
 
@@ -274,8 +287,8 @@ fun ParkingModeScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceAround
                     ) {
-                        Text("FRONT: CLEAR (>1.5m)", style = MaterialTheme.typography.labelSmall, color = NexonCyanPrimary, fontWeight = FontWeight.Bold)
-                        Text("REAR: CLEAR (>2.0m)", style = MaterialTheme.typography.labelSmall, color = NexonEmeraldAccent, fontWeight = FontWeight.Bold)
+                        Text("FRONT: INFOTAINMENT NATIVE", style = MaterialTheme.typography.labelSmall, color = TextMuted, fontWeight = FontWeight.SemiBold)
+                        Text("REAR: INFOTAINMENT NATIVE", style = MaterialTheme.typography.labelSmall, color = TextMuted, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }

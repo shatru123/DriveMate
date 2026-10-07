@@ -2,6 +2,7 @@ package com.shatrughna.drivemate.ui.settings
 
 import android.graphics.BitmapFactory
 import android.net.Uri
+import com.shatrughna.drivemate.util.VehiclePhotoLoader
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -120,6 +121,9 @@ import java.io.File
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     onNavigateBack: () -> Unit,
+    onToggleDemoMode: (Boolean) -> Unit = {},
+    onSeedDemoData: () -> Unit = {},
+    onClearDemoData: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
@@ -135,29 +139,9 @@ fun SettingsScreen(
         }
     }
 
-    // Vehicle photo preview bitmap
+    // Vehicle photo preview bitmap with safe downsampling & EXIF orientation handling
     val vehicleThumbnail by produceState<ImageBitmap?>(initialValue = null, settings.vehiclePhotoUri) {
-        val uriStr = settings.vehiclePhotoUri
-        if (uriStr.isNullOrBlank()) {
-            value = null
-            return@produceState
-        }
-        value = withContext(Dispatchers.IO) {
-            try {
-                if (uriStr.startsWith("content://")) {
-                    context.contentResolver.openInputStream(Uri.parse(uriStr))?.use { stream ->
-                        BitmapFactory.decodeStream(stream)?.asImageBitmap()
-                    }
-                } else {
-                    val file = if (uriStr.startsWith("file://")) File(Uri.parse(uriStr).path ?: "") else File(uriStr)
-                    if (file.exists()) {
-                        BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap()
-                    } else null
-                }
-            } catch (e: Exception) {
-                null
-            }
-        }
+        value = VehiclePhotoLoader.loadOptimizedBitmap(context, settings.vehiclePhotoUri, maxDimension = 512)
     }
 
     var driverNameInput by remember(settings.driverName) { mutableStateOf(settings.driverName) }
@@ -980,7 +964,81 @@ fun SettingsScreen(
                 }
             }
 
-            // 10. Platform Safety & Android Auto Guidelines
+            // 10. Developer & Demo Mode
+            DriveMateSectionHeader(title = "Developer & Demo Data")
+            DriveMateCard(containerColor = DarkSurface) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Demo Data Mode",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Populates Document Vault, Maintenance, and Expenses with clearly tagged [DEMO] records for previewing features.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary
+                            )
+                        }
+                        Switch(
+                            checked = settings.isDemoModeEnabled,
+                            onCheckedChange = { enabled ->
+                                viewModel.updateDemoModeEnabled(enabled)
+                                onToggleDemoMode(enabled)
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = NexonAmberAccent,
+                                checkedTrackColor = NexonAmberAccent.copy(alpha = 0.5f),
+                                uncheckedThumbColor = TextMuted,
+                                uncheckedTrackColor = DarkSurfaceVariant
+                            )
+                        )
+                    }
+
+                    if (settings.isDemoModeEnabled) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = onSeedDemoData,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .rememberPressScale(),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = NexonAmberAccent),
+                                border = BorderStroke(1.dp, NexonAmberAccent.copy(alpha = 0.6f)),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text("Re-seed Demo")
+                            }
+
+                            OutlinedButton(
+                                onClick = onClearDemoData,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .rememberPressScale(),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
+                                border = BorderStroke(1.dp, DarkBorder),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text("Clear Demo")
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 11. Platform Safety & Android Auto Guidelines
             DriveMateSectionHeader(title = "Platform Safety & Guidelines")
             DriveMateCard(containerColor = DarkSurface) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -1013,12 +1071,12 @@ fun SettingsScreen(
                 }
             }
 
-            // 11. About & Diagnostics
+            // 12. About & Diagnostics
             DriveMateSectionHeader(title = "About DriveMate")
             DriveMateCard(containerColor = DarkSurface) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "DriveMate v3.0.0",
+                        text = "DriveMate v5.0.0",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary

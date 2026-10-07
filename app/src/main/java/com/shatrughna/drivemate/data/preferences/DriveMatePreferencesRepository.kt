@@ -58,6 +58,7 @@ interface DriveMatePreferencesRepository {
     suspend fun updateVoiceAssistantEnabled(enabled: Boolean)
     suspend fun updateHeyDriveMateEnabled(enabled: Boolean)
     suspend fun updateWakeWordSensitivity(sensitivity: Float)
+    suspend fun updateDemoModeEnabled(enabled: Boolean)
     suspend fun resetToDefaults()
 }
 
@@ -103,6 +104,7 @@ class DriveMatePreferencesRepositoryImpl(
         val VOICE_ASSISTANT_ENABLED = booleanPreferencesKey("voice_assistant_enabled")
         val HEY_DRIVEMATE_ENABLED = booleanPreferencesKey("hey_drivemate_enabled")
         val WAKE_WORD_SENSITIVITY = floatPreferencesKey("wake_word_sensitivity")
+        val DEMO_MODE_ENABLED = booleanPreferencesKey("demo_mode_enabled")
 
         // Trip stats keys
         val TODAY_TRIPS = intPreferencesKey("today_trips_count")
@@ -158,7 +160,8 @@ class DriveMatePreferencesRepositoryImpl(
                 preferredMusicApp = preferences[PreferencesKeys.PREFERRED_MUSIC_APP] ?: "Spotify",
                 voiceAssistantEnabled = preferences[PreferencesKeys.VOICE_ASSISTANT_ENABLED] ?: true,
                 heyDriveMateEnabled = preferences[PreferencesKeys.HEY_DRIVEMATE_ENABLED] ?: true,
-                wakeWordSensitivity = preferences[PreferencesKeys.WAKE_WORD_SENSITIVITY] ?: 0.5f
+                wakeWordSensitivity = preferences[PreferencesKeys.WAKE_WORD_SENSITIVITY] ?: 0.5f,
+                isDemoModeEnabled = preferences[PreferencesKeys.DEMO_MODE_ENABLED] ?: false
             )
         }
 
@@ -280,6 +283,15 @@ class DriveMatePreferencesRepositoryImpl(
 
     override suspend fun updateVehicleCare(odometerKm: Double, nextServiceKm: Int, fuelReminder: Boolean) {
         context.dataStore.edit { preferences ->
+            val currentOdometer = preferences[PreferencesKeys.ODOMETER_DOUBLE]
+                ?: preferences[PreferencesKeys.ODOMETER_KM]?.toDouble()
+                ?: 12500.0
+            if (odometerKm < currentOdometer) {
+                AppLogger.w(
+                    AppLogger.Tag.SETTINGS,
+                    "Vehicle care odometer update lower than current value (proposed: $odometerKm, current: $currentOdometer)"
+                )
+            }
             preferences[PreferencesKeys.ODOMETER_DOUBLE] = odometerKm
             preferences[PreferencesKeys.ODOMETER_KM] = odometerKm.toInt()
             preferences[PreferencesKeys.NEXT_SERVICE_KM] = nextServiceKm
@@ -289,6 +301,12 @@ class DriveMatePreferencesRepositoryImpl(
 
     override suspend fun updateVehicleCare(odometerKm: Int, nextServiceKm: Int, fuelReminder: Boolean) {
         updateVehicleCare(odometerKm.toDouble(), nextServiceKm, fuelReminder)
+    }
+
+    override suspend fun updateDemoModeEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.DEMO_MODE_ENABLED] = enabled
+        }
     }
 
     override suspend fun updateVehicleRegistration(regNumber: String) {

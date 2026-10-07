@@ -282,7 +282,56 @@ fun DocumentVaultScreen(
                 }
             }
 
-            if (filteredDocuments.isEmpty()) {
+            if (documents.isEmpty()) {
+                item {
+                    DriveMateCard {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(CircleShape)
+                                    .background(NexonCyanPrimary.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Description,
+                                    contentDescription = null,
+                                    tint = NexonCyanPrimary,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                            Text(
+                                text = "Zero Documents in Vault",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Securely save your Registration Certificate (RC), Insurance, PUC, and Driving Licence in this encrypted on-device sandbox. Data is protected with biometrics and never leaves your phone.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Button(
+                                onClick = { showAddDialog = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = NexonCyanPrimary),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.rememberPressScale()
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, tint = Color.Black)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Add First Document", color = Color.Black, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            } else if (filteredDocuments.isEmpty()) {
                 item {
                     DriveMateCard {
                         Box(
@@ -412,20 +461,43 @@ private fun DocumentItemCard(
                     }
                 }
 
-                // Expiry Badge Pill
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(statusColor.copy(alpha = 0.15f))
-                        .border(1.dp, statusColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = document.expiryBadgeText(),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = statusColor
-                    )
+                val isDemo = document.id.startsWith("demo_") || document.title.startsWith("[DEMO]")
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isDemo) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(NexonAmberAccent.copy(alpha = 0.18f))
+                                .border(0.8.dp, NexonAmberAccent.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "DEMO",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.sp,
+                                color = NexonAmberAccent
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+
+                    // Expiry Badge Pill
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(statusColor.copy(alpha = 0.15f))
+                            .border(1.dp, statusColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = document.expiryBadgeText(),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = statusColor
+                        )
+                    }
                 }
             }
 

@@ -254,10 +254,8 @@ fun DashboardScreen(
 
             // V4 Central My Car Operating System Hub Launcher
             com.shatrughna.drivemate.ui.components.DriveMateCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onNavigateToMyCar)
-                    .rememberPressScale()
+                onClick = onNavigateToMyCar,
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier

@@ -219,6 +219,12 @@ class SettingsViewModel(
         greetingController.stopSpeaking()
     }
 
+    fun updateDemoModeEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesRepository.updateDemoModeEnabled(enabled)
+        }
+    }
+
     fun resetToDefaults() {
         viewModelScope.launch {
             preferencesRepository.resetToDefaults()

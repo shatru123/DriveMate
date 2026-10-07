@@ -299,22 +299,55 @@ fun MaintenanceScreen(
             if (records.isEmpty()) {
                 item {
                     DriveMateCard {
-                        Box(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
+                                .padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(CircleShape)
+                                    .background(NexonEmeraldAccent.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Build,
+                                    contentDescription = null,
+                                    tint = NexonEmeraldAccent,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
                             Text(
-                                text = "No maintenance records logged yet.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextMuted
+                                text = "No Maintenance Records Yet",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
                             )
+                            Text(
+                                text = "Track periodic oil changes, brake pads, tire rotations, and scheduled workshop visits for your Tata Nexon. Keep your vehicle warranty intact and history verified.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Button(
+                                onClick = { showAddDialog = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = NexonEmeraldAccent),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.rememberPressScale()
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, tint = Color.Black)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Log Service Record", color = Color.Black, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
             } else {
                 items(records, key = { it.id }) { record ->
+                    val isDemo = record.id.startsWith("demo_") || record.title.startsWith("[DEMO]")
                     DriveMateCard {
                         Column(
                             modifier = Modifier
@@ -327,13 +360,35 @@ fun MaintenanceScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = record.title,
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextPrimary,
-                                    modifier = Modifier.weight(1f)
-                                )
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (isDemo) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(NexonAmberAccent.copy(alpha = 0.18f))
+                                                .border(0.8.dp, NexonAmberAccent.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "DEMO",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 9.sp,
+                                                color = NexonAmberAccent
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                    }
+                                    Text(
+                                        text = record.title,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary
+                                    )
+                                }
                                 Text(
                                     text = if (record.cost > 0) "₹${record.cost.toInt()}" else "Free",
                                     style = MaterialTheme.typography.titleSmall,
