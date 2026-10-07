@@ -110,6 +110,8 @@ class MainViewModel(
         initialValue = emptyList()
     )
 
+    val recentDestinations: StateFlow<List<Destination>> = destinationManager.recentDestinations
+
     // Dynamically prepared greeting text for the dashboard
     val currentGreetingText: StateFlow<String> = combine(
         settings,
@@ -166,6 +168,14 @@ class MainViewModel(
 
     fun launchDestination(context: Context, destination: Destination) {
         destinationManager.launchNavigation(context, destination)
+    }
+
+    fun searchAndLaunchDestination(context: Context, query: String) {
+        destinationManager.launchNavigationQuery(context, query)
+    }
+
+    fun clearRecentDestinations() {
+        destinationManager.clearRecentDestinations()
     }
 
     fun toggleGreetingEnabled(enabled: Boolean) {

@@ -168,7 +168,10 @@ class AndroidAutoReliabilityTest {
         override suspend fun updateTargetBluetoothName(name: String) {}
         override suspend fun updateWeatherSettings(includeInGreeting: Boolean, cityName: String, lat: Double, lon: Double) {}
         override suspend fun updateAutoDetectLocation(enabled: Boolean) {}
+        override suspend fun updateVehicleCare(odometerKm: Double, nextServiceKm: Int, fuelReminder: Boolean) {}
         override suspend fun updateVehicleCare(odometerKm: Int, nextServiceKm: Int, fuelReminder: Boolean) {}
+        override suspend fun updateVehicleRegistration(regNumber: String) {}
+        override suspend fun updateVehiclePhotoUri(uriString: String?) {}
         override suspend fun updateFavoriteAddresses(home: String, office: String) {}
         override suspend fun recordCompletedTrip(distanceKm: Float, durationMinutes: Long) {}
         override suspend fun updateLastParkedLocation(lat: Double, lon: Double, address: String?) {}

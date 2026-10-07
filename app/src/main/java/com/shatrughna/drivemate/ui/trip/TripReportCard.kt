@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -87,11 +88,15 @@ fun TripReportCard(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Canvas Route Map Polyline Visualizer
+            // Canvas Route Map Polyline Visualizer with 3D Depth
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(130.dp)
+                    .graphicsLayer {
+                        rotationX = 10f
+                        cameraDistance = 14f * density
+                    }
                     .background(Color(0xFF0F172A), RoundedCornerShape(14.dp))
                     .padding(12.dp)
             ) {

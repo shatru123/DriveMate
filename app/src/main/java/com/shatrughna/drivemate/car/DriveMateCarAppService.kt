@@ -3,6 +3,8 @@ package com.shatrughna.drivemate.car
 import androidx.car.app.CarAppService
 import androidx.car.app.Session
 import androidx.car.app.validation.HostValidator
+import com.shatrughna.drivemate.BuildConfig
+import com.shatrughna.drivemate.util.AppLogger
 
 /**
  * Entry point for Android Auto Car Screen application.
@@ -11,8 +13,15 @@ import androidx.car.app.validation.HostValidator
 class DriveMateCarAppService : CarAppService() {
 
     override fun createHostValidator(): HostValidator {
-        // Allows official Android Auto head units, Desktop Head Unit (DHU), and verified OEM hosts
-        return HostValidator.ALLOW_ALL_HOSTS_VALIDATOR
+        return if (BuildConfig.DEBUG) {
+            AppLogger.d(AppLogger.Tag.APP, "CarAppService: Using ALLOW_ALL_HOSTS_VALIDATOR for debug / DHU testing.")
+            HostValidator.ALLOW_ALL_HOSTS_VALIDATOR
+        } else {
+            AppLogger.i(AppLogger.Tag.APP, "CarAppService: Using official Android for Cars production host allowlist.")
+            HostValidator.Builder(applicationContext)
+                .addAllowedHosts(androidx.car.app.R.array.hosts_allowlist_sample)
+                .build()
+        }
     }
 
     override fun onCreateSession(): Session {

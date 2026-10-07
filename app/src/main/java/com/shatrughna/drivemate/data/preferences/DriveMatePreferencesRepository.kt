@@ -46,7 +46,10 @@ interface DriveMatePreferencesRepository {
     // V2 Methods
     suspend fun updateWeatherSettings(includeInGreeting: Boolean, cityName: String, lat: Double, lon: Double)
     suspend fun updateAutoDetectLocation(enabled: Boolean)
+    suspend fun updateVehicleCare(odometerKm: Double, nextServiceKm: Int, fuelReminder: Boolean)
     suspend fun updateVehicleCare(odometerKm: Int, nextServiceKm: Int, fuelReminder: Boolean)
+    suspend fun updateVehicleRegistration(regNumber: String)
+    suspend fun updateVehiclePhotoUri(uriString: String?)
     suspend fun updateFavoriteAddresses(home: String, office: String)
     suspend fun recordCompletedTrip(distanceKm: Float, durationMinutes: Long)
     suspend fun updateLastParkedLocation(lat: Double, lon: Double, address: String?)
@@ -83,6 +86,9 @@ class DriveMatePreferencesRepositoryImpl(
         val WEATHER_CITY = stringPreferencesKey("weather_city_name")
         val WEATHER_LAT = doublePreferencesKey("weather_latitude")
         val WEATHER_LON = doublePreferencesKey("weather_longitude")
+        val VEHICLE_REGISTRATION = stringPreferencesKey("vehicle_registration_number")
+        val VEHICLE_PHOTO_URI = stringPreferencesKey("vehicle_photo_uri")
+        val ODOMETER_DOUBLE = doublePreferencesKey("odometer_km_double")
         val ODOMETER_KM = intPreferencesKey("odometer_km")
         val NEXT_SERVICE_KM = intPreferencesKey("next_service_km")
         val FUEL_REMINDER = booleanPreferencesKey("fuel_reminder_enabled")
@@ -120,6 +126,8 @@ class DriveMatePreferencesRepositoryImpl(
                 vehicleBrand = preferences[PreferencesKeys.VEHICLE_BRAND] ?: "TATA",
                 vehicleModel = preferences[PreferencesKeys.VEHICLE_MODEL] ?: "Nexon",
                 vehicleVariant = preferences[PreferencesKeys.VEHICLE_VARIANT] ?: "Creative+ S",
+                vehicleRegistrationNumber = preferences[PreferencesKeys.VEHICLE_REGISTRATION] ?: "MH 28 BW 1624",
+                vehiclePhotoUri = preferences[PreferencesKeys.VEHICLE_PHOTO_URI],
                 greetingEnabled = preferences[PreferencesKeys.GREETING_ENABLED] ?: true,
                 greetingStyle = GreetingStyle.fromName(preferences[PreferencesKeys.GREETING_STYLE]),
                 customGreetingTemplate = preferences[PreferencesKeys.CUSTOM_GREETING_TEMPLATE]
@@ -135,7 +143,9 @@ class DriveMatePreferencesRepositoryImpl(
                 weatherCityName = preferences[PreferencesKeys.WEATHER_CITY] ?: "",
                 weatherLatitude = preferences[PreferencesKeys.WEATHER_LAT] ?: 0.0,
                 weatherLongitude = preferences[PreferencesKeys.WEATHER_LON] ?: 0.0,
-                odometerKm = preferences[PreferencesKeys.ODOMETER_KM] ?: 12500,
+                odometerKm = preferences[PreferencesKeys.ODOMETER_DOUBLE]
+                    ?: preferences[PreferencesKeys.ODOMETER_KM]?.toDouble()
+                    ?: 12500.0,
                 nextServiceKm = preferences[PreferencesKeys.NEXT_SERVICE_KM] ?: 15000,
                 fuelReminderEnabled = preferences[PreferencesKeys.FUEL_REMINDER] ?: false,
                 homeAddress = preferences[PreferencesKeys.HOME_ADDRESS] ?: "Home",
@@ -268,11 +278,32 @@ class DriveMatePreferencesRepositoryImpl(
         }
     }
 
-    override suspend fun updateVehicleCare(odometerKm: Int, nextServiceKm: Int, fuelReminder: Boolean) {
+    override suspend fun updateVehicleCare(odometerKm: Double, nextServiceKm: Int, fuelReminder: Boolean) {
         context.dataStore.edit { preferences ->
-            preferences[PreferencesKeys.ODOMETER_KM] = odometerKm
+            preferences[PreferencesKeys.ODOMETER_DOUBLE] = odometerKm
+            preferences[PreferencesKeys.ODOMETER_KM] = odometerKm.toInt()
             preferences[PreferencesKeys.NEXT_SERVICE_KM] = nextServiceKm
             preferences[PreferencesKeys.FUEL_REMINDER] = fuelReminder
+        }
+    }
+
+    override suspend fun updateVehicleCare(odometerKm: Int, nextServiceKm: Int, fuelReminder: Boolean) {
+        updateVehicleCare(odometerKm.toDouble(), nextServiceKm, fuelReminder)
+    }
+
+    override suspend fun updateVehicleRegistration(regNumber: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.VEHICLE_REGISTRATION] = DriveMateSettings.normalizeRegistration(regNumber)
+        }
+    }
+
+    override suspend fun updateVehiclePhotoUri(uriString: String?) {
+        context.dataStore.edit { preferences ->
+            if (uriString != null) {
+                preferences[PreferencesKeys.VEHICLE_PHOTO_URI] = uriString
+            } else {
+                preferences.remove(PreferencesKeys.VEHICLE_PHOTO_URI)
+            }
         }
     }
 
@@ -303,9 +334,13 @@ class DriveMatePreferencesRepositoryImpl(
             preferences[PreferencesKeys.TODAY_DISTANCE] = currentDistance + distanceKm
             preferences[PreferencesKeys.TODAY_DURATION] = currentDuration + durationMinutes
 
-            // Update odometer automatically with the driven distance
-            val currentOdometer = preferences[PreferencesKeys.ODOMETER_KM] ?: 12500
-            preferences[PreferencesKeys.ODOMETER_KM] = currentOdometer + distanceKm.toInt()
+            // Update odometer with precise fractional distance (zero truncation!)
+            val currentOdometer = preferences[PreferencesKeys.ODOMETER_DOUBLE]
+                ?: preferences[PreferencesKeys.ODOMETER_KM]?.toDouble()
+                ?: 12500.0
+            val newOdometer = currentOdometer + distanceKm.toDouble()
+            preferences[PreferencesKeys.ODOMETER_DOUBLE] = newOdometer
+            preferences[PreferencesKeys.ODOMETER_KM] = newOdometer.toInt()
         }
     }
 

@@ -111,15 +111,16 @@ class SpeechRecognizerWakeWordEngine(
         restartJob?.cancel()
         restartJob = null
 
-        scope.launch {
+        val recognizer = speechRecognizer
+        speechRecognizer = null
+        if (recognizer != null) {
             try {
-                speechRecognizer?.stopListening()
-                speechRecognizer?.cancel()
-                speechRecognizer?.destroy()
+                recognizer.stopListening()
+                recognizer.cancel()
+                recognizer.destroy()
             } catch (e: Exception) {
                 AppLogger.w(AppLogger.Tag.APP, "WakeWordEngine: Error destroying recognizer: ${e.message}")
             }
-            speechRecognizer = null
         }
     }
 

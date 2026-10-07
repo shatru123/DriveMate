@@ -267,19 +267,16 @@ The test suite validates greeting generation, session deduplication, and state m
 
 ## 🗺️ Roadmap
 
-### Version 2.5 (Hands-Free Voice & Android Auto Car Screen) - Released ✅
-- [x] **Hands-Free "Hey DriveMate" Voice Activation**: SpeechRecognizerWakeWordEngine with instant trailing command parsing ("Hey DriveMate, navigate to office"), 6s timeout, and mic release on disconnect.
-- [x] **Native Android Auto Car Screen Dashboard**: `DriveMateCarAppService` and `DriveMateCarSession` implementing driver-distraction-safe screens:
-  - `DriveMateHomeScreen`: Glanceable greeting, weather, trip stats, and quick actions.
-  - `CarVoiceAssistantScreen`: Voice interaction status and verbal responses.
-  - `CarTripStatusScreen`: Live drive duration, real GPS distance, and average speed.
-  - `CarWeatherScreen`: Localized live weather and forecasts.
-  - `CarFindMyCarScreen`: Parked location coordinates and walking guidance.
-- [x] **Location-Aware Weather Resolver & Cache**: `WeatherLocationResolver` dynamically queries device GPS without implicit Pune fallbacks, cached via geographic buckets (`WeatherCacheKey`).
-- [x] **Real GPS Trip Tracking & Data Integrity**: Breadcrumb recording with 5-meter noise threshold and >160 km/h jump rejection; removed all fabricated/simulated distance and fuel approximations.
-- [x] **Find My Nexon & Fatigue Alerts**: Parked location recorder with reverse geocoding and 2-hour continuous driving fatigue warning.
+### Version 3.0 (Production Hardening, Dynamic Destinations & 3D UX) - Released ✅
+- [x] **Production Android Auto Host Validation**: Dual-mode host validation (`ALLOW_ALL_HOSTS_VALIDATOR` in debug for DHU; `androidx.car.app.R.array.hosts_allowlist_sample` in release).
+- [x] **Foreground Service Hardening**: Android 14/15 `foregroundServiceType` flags (`connectedDevice|location`), background start exception guards, and clean notification lifecycle teardown.
+- [x] **Single-Owner Microphone Arbitration**: `AudioInputCoordinator` state machine enforcing strict mutual exclusion between wake word engine and command recognizer, and locking microphone during TTS speech playback.
+- [x] **Dynamic Destination Search & Recent History**: Arbitrary navigation queries ("petrol pump", "airport", "Tata service"), persistent 15-item JSON history (`drivemate_recent_destinations.json`), and contextual time-of-day suggestions.
+- [x] **Personal Vehicle Profile & HSRP**: Authentic Indian High Security Registration Plate (HSRP) representation (`MH 28 BW 1624`), photo picker copying image into internal storage, and high-precision double odometer (`12,500.8 km` without truncation).
+- [x] **Tasteful 3D Perspective UX**: Touch-interactive 3D hero vehicle card with physics spring return and ambient floating tilt, paired with driver-safe 2D templates on the car head unit.
+- [x] **New Android Auto Car Screens**: `CarDestinationSearchScreen`, `CarRecentDestinationsScreen`, `CarSuggestedDestinationsScreen`.
 
-### Version 3.0 (Autonomous AI Companion)
+### Version 3.5 (Autonomous AI Companion)
 - [ ] **Multi-Model LLM Integration**: On-device / cloud LLM integration (Google Gemini / Claude / OpenAI).
 - [ ] **Proactive Driving Intelligence**: Real-time traffic anomaly predictions and intelligent conversational debriefs.
 

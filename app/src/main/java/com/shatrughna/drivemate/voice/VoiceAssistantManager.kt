@@ -21,6 +21,7 @@ import com.shatrughna.drivemate.weather.WeatherRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -54,6 +55,7 @@ class VoiceAssistantManagerImpl(
     private val tripTracker: TripTracker,
     private val carConnectionManager: CarConnectionManager,
     private val locationResolver: WeatherLocationResolver? = null,
+    private val audioCoordinator: AudioInputCoordinator? = null,
     private val parser: VoiceCommandParser = VoiceCommandParser(),
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 ) : VoiceAssistantManager {
@@ -86,6 +88,11 @@ class VoiceAssistantManagerImpl(
                 return@launch
             }
 
+            if (audioCoordinator != null && !audioCoordinator.requestCommandListening()) {
+                AppLogger.w(AppLogger.Tag.APP, "AudioCoordinator denied microphone for VoiceAssistant.")
+                return@launch
+            }
+
             val recognizer = getOrCreateRecognizer() ?: return@launch
             val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -98,6 +105,7 @@ class VoiceAssistantManagerImpl(
                 recognizer.startListening(intent)
             } catch (e: Exception) {
                 AppLogger.e(AppLogger.Tag.APP, "Failed to start speech recognizer", e)
+                audioCoordinator?.onCommandListeningFinished()
                 _state.value = VoiceAssistantState.Error("Failed to listen: ${e.message}")
             }
         }
@@ -109,6 +117,9 @@ class VoiceAssistantManagerImpl(
         } catch (e: Exception) {
             AppLogger.w(AppLogger.Tag.APP, "Error stopping SpeechRecognizer: ${e.message}")
         }
+        scope.launch {
+            audioCoordinator?.onCommandListeningFinished()
+        }
         if (_state.value is VoiceAssistantState.Listening) {
             _state.value = VoiceAssistantState.Idle
         }
@@ -116,17 +127,23 @@ class VoiceAssistantManagerImpl(
 
     override fun release() {
         stopListening()
+        val recognizer = speechRecognizer
+        speechRecognizer = null
         try {
-            speechRecognizer?.destroy()
+            recognizer?.cancel()
+            recognizer?.destroy()
         } catch (e: Exception) {
             AppLogger.w(AppLogger.Tag.APP, "Error destroying SpeechRecognizer: ${e.message}")
         }
-        speechRecognizer = null
+        scope.launch {
+            audioCoordinator?.releaseAll()
+        }
         _state.value = VoiceAssistantState.Idle
     }
 
     override fun processTextCommand(commandText: String) {
         scope.launch {
+            audioCoordinator?.setProcessing()
             executeCommand(parser.parse(commandText))
         }
     }
@@ -139,6 +156,7 @@ class VoiceAssistantManagerImpl(
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() {
                 if (_state.value is VoiceAssistantState.Listening) {
+                    audioCoordinator?.setProcessing()
                     _state.value = VoiceAssistantState.Processing("Analyzing...")
                 }
             }
@@ -151,6 +169,9 @@ class VoiceAssistantManagerImpl(
                     else -> "Speech recognition error ($error)"
                 }
                 AppLogger.w(AppLogger.Tag.APP, "Speech recognizer error: $errorMsg")
+                scope.launch {
+                    audioCoordinator?.onCommandListeningFinished()
+                }
                 _state.value = VoiceAssistantState.Error(errorMsg)
             }
 
@@ -233,8 +254,9 @@ class VoiceAssistantManagerImpl(
             }
 
             VoiceCommand.CheckVehicleCare -> {
-                val remainingKm = (settings.nextServiceKm - settings.odometerKm).coerceAtLeast(0)
-                val speech = "Your Tata Nexon has covered ${settings.odometerKm} kilometers. Next service is due at ${settings.nextServiceKm} kilometers, which is in $remainingKm kilometers."
+                val remainingKm = settings.remainingServiceKm.toInt()
+                val odoText = String.format(Locale.US, "%,.1f", settings.odometerKm)
+                val speech = "Your Tata Nexon has covered $odoText kilometers. Next service is due at ${settings.nextServiceKm} kilometers, which is in $remainingKm kilometers."
                 respondWithVoice(speech)
             }
 
@@ -271,9 +293,12 @@ class VoiceAssistantManagerImpl(
 
     private suspend fun respondWithVoice(speechText: String) {
         _state.value = VoiceAssistantState.Responding(speechText)
+        audioCoordinator?.onTtsStarted()
         withContext(Dispatchers.Default) {
             ttsManager.speak(speechText)
         }
+        audioCoordinator?.onTtsCompleted()
+        delay(400L)
         _state.value = VoiceAssistantState.Idle
     }
 

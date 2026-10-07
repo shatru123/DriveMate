@@ -63,6 +63,8 @@ class TripTrackerImpl(
     private var sessionStartTimeMillis: Long = 0L
     private var startLocationResolvedName: String? = null
     private var fatigueAlertTriggered = false
+    private var continuousMovingDurationSeconds = 0L
+    private var continuousStationarySeconds = 0L
 
     override val tripStats: StateFlow<TripStats> = combine(
         preferencesRepository.tripStatsFlow,
@@ -133,17 +135,7 @@ class TripTrackerImpl(
                 seconds += 1
                 _activeTripDurationSeconds.value = seconds
 
-                // ZERO FABRICATED DISTANCE: Distance strictly derives from verified GPS points or manual simulation.
-
-                // Check 2-hour continuous driving fatigue alert (7200s), fired exactly once per session
-                if (seconds >= 7200L && !fatigueAlertTriggered) {
-                    fatigueAlertTriggered = true
-                    val settings = preferencesRepository.settingsFlow.first()
-                    if (settings.driverFatigueAlertEnabled && sessionManager.isSessionActive.value) {
-                        AppLogger.i(AppLogger.Tag.SESSION, "Triggering 2-hour driver fatigue alert.")
-                        ttsManager?.speak("Driver fatigue warning: You have been driving for two continuous hours. Please consider pulling over for a quick rest.")
-                    }
-                }
+                // Zero fabricated distance: Distance strictly derives from verified GPS points.
             }
         }
 
@@ -195,6 +187,27 @@ class TripTrackerImpl(
                     )
                 )
                 _activeRoutePoints.value = currentPoints
+
+                // Vehicle is actively moving: reset stationary counter and accumulate moving time
+                continuousStationarySeconds = 0L
+                continuousMovingDurationSeconds += 5L
+
+                // 2 hours (7200s) of continuous moving driving triggers fatigue alert
+                if (continuousMovingDurationSeconds >= 7200L && !fatigueAlertTriggered) {
+                    fatigueAlertTriggered = true
+                    val settings = preferencesRepository.settingsFlow.first()
+                    if (settings.driverFatigueAlertEnabled && sessionManager.isSessionActive.value) {
+                        AppLogger.i(AppLogger.Tag.SESSION, "Triggering 2-hour continuous driving fatigue alert.")
+                        ttsManager?.speak("Driver fatigue warning: You have been actively driving for two continuous hours. Please consider pulling over for a quick rest.")
+                    }
+                }
+            } else {
+                // Stationary: if parked/stopped for > 15 minutes (900 seconds), reset continuous moving time
+                continuousStationarySeconds += 5L
+                if (continuousStationarySeconds >= 900L) {
+                    continuousMovingDurationSeconds = 0L
+                    fatigueAlertTriggered = false
+                }
             }
         } else {
             // First verified GPS point
@@ -211,6 +224,10 @@ class TripTrackerImpl(
     }
 
     private suspend fun onSessionEnded() {
+        continuousMovingDurationSeconds = 0L
+        continuousStationarySeconds = 0L
+        fatigueAlertTriggered = false
+
         val durationSecs = _activeTripDurationSeconds.value
         val distanceKm = _activeTripDistanceKm.value
         val points = _activeRoutePoints.value

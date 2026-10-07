@@ -21,13 +21,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -91,10 +96,20 @@ fun SettingsScreen(
     val isSpeaking by viewModel.isSpeaking.collectAsStateWithLifecycle()
     val templateValidation by viewModel.templateValidation.collectAsStateWithLifecycle()
 
+    val context = LocalContext.current
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            viewModel.saveVehiclePhoto(context, uri)
+        }
+    }
+
     var driverNameInput by remember(settings.driverName) { mutableStateOf(settings.driverName) }
     var vehicleBrandInput by remember(settings.vehicleBrand) { mutableStateOf(settings.vehicleBrand) }
     var vehicleModelInput by remember(settings.vehicleModel) { mutableStateOf(settings.vehicleModel) }
     var vehicleVariantInput by remember(settings.vehicleVariant) { mutableStateOf(settings.vehicleVariant) }
+    var registrationInput by remember(settings.vehicleRegistrationNumber) { mutableStateOf(settings.vehicleRegistrationNumber) }
     var customTemplateInput by remember(settings.customGreetingTemplate) { mutableStateOf(settings.customGreetingTemplate) }
 
     // V2 inputs
@@ -210,6 +225,66 @@ fun SettingsScreen(
                         colors = outlinedTextFieldColors(),
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    OutlinedTextField(
+                        value = registrationInput,
+                        onValueChange = {
+                            registrationInput = it
+                            viewModel.updateVehicleRegistration(it)
+                        },
+                        label = { Text("Registration Plate (e.g. MH 28 BW 1624)") },
+                        singleLine = true,
+                        colors = outlinedTextFieldColors(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    HorizontalDivider(color = DarkBorder)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Vehicle Profile Photo",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = if (settings.vehiclePhotoUri != null) "Custom photo uploaded" else "Using stylized 3D card fallback",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                        }
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (settings.vehiclePhotoUri != null) {
+                                OutlinedButton(
+                                    onClick = { viewModel.removeVehiclePhoto(context) },
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NexonRedAccent),
+                                    border = BorderStroke(1.dp, NexonRedAccent.copy(alpha = 0.5f))
+                                ) {
+                                    Text("Remove")
+                                }
+                            }
+                            Button(
+                                onClick = {
+                                    photoPickerLauncher.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = NexonCyanPrimary)
+                            ) {
+                                Text(
+                                    text = if (settings.vehiclePhotoUri != null) "Change Photo" else "Upload Photo",
+                                    color = Color.Black,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
@@ -327,7 +402,7 @@ fun SettingsScreen(
                         value = odometerInput,
                         onValueChange = {
                             odometerInput = it
-                            val parsedOdo = it.toIntOrNull() ?: settings.odometerKm
+                            val parsedOdo = it.toDoubleOrNull() ?: settings.odometerKm
                             viewModel.updateVehicleCare(parsedOdo, settings.nextServiceKm, settings.fuelReminderEnabled)
                         },
                         label = { Text("Current Odometer (km)") },
@@ -408,6 +483,24 @@ fun SettingsScreen(
                         colors = outlinedTextFieldColors(),
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    HorizontalDivider(color = DarkBorder)
+
+                    OutlinedButton(
+                        onClick = { viewModel.clearRecentDestinations() },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = NexonAmberAccent),
+                        border = BorderStroke(1.dp, NexonAmberAccent.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DeleteSweep,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Clear Recent Destinations History")
+                    }
                 }
             }
 

@@ -1,28 +1,35 @@
 package com.shatrughna.drivemate.ui.settings
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.shatrughna.drivemate.data.model.DriveMateSettings
 import com.shatrughna.drivemate.data.model.GreetingStyle
 import com.shatrughna.drivemate.data.preferences.DriveMatePreferencesRepository
+import com.shatrughna.drivemate.destination.DestinationManager
 import com.shatrughna.drivemate.greeting.GreetingController
 import com.shatrughna.drivemate.greeting.GreetingGenerator
 import com.shatrughna.drivemate.greeting.GreetingTtsManager
 import com.shatrughna.drivemate.greeting.TemplateValidationResult
 import com.shatrughna.drivemate.greeting.VoiceInfo
+import com.shatrughna.drivemate.util.AppLogger
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.io.File
 
 class SettingsViewModel(
     private val preferencesRepository: DriveMatePreferencesRepository,
     private val greetingController: GreetingController,
     private val greetingGenerator: GreetingGenerator,
-    private val ttsManager: GreetingTtsManager
+    private val ttsManager: GreetingTtsManager,
+    private val destinationManager: DestinationManager? = null
 ) : ViewModel() {
 
     val settings: StateFlow<DriveMateSettings> = preferencesRepository.settingsFlow
@@ -60,6 +67,48 @@ class SettingsViewModel(
         viewModelScope.launch {
             preferencesRepository.updateVehicle(brand, model, variant)
         }
+    }
+
+    fun updateVehicleRegistration(regNumber: String) {
+        viewModelScope.launch {
+            preferencesRepository.updateVehicleRegistration(regNumber)
+        }
+    }
+
+    fun saveVehiclePhoto(context: Context, sourceUri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val destinationFile = File(context.filesDir, "vehicle_profile_photo.jpg")
+                context.contentResolver.openInputStream(sourceUri)?.use { input ->
+                    destinationFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                preferencesRepository.updateVehiclePhotoUri(destinationFile.absolutePath)
+                AppLogger.i(AppLogger.Tag.SETTINGS, "Saved vehicle profile photo to ${destinationFile.absolutePath}")
+            } catch (e: Exception) {
+                AppLogger.e(AppLogger.Tag.SETTINGS, "Failed to save vehicle photo", e)
+            }
+        }
+    }
+
+    fun removeVehiclePhoto(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val file = File(context.filesDir, "vehicle_profile_photo.jpg")
+                if (file.exists()) {
+                    file.delete()
+                }
+                preferencesRepository.updateVehiclePhotoUri(null)
+                AppLogger.i(AppLogger.Tag.SETTINGS, "Removed vehicle profile photo")
+            } catch (e: Exception) {
+                AppLogger.e(AppLogger.Tag.SETTINGS, "Failed to remove vehicle photo", e)
+            }
+        }
+    }
+
+    fun clearRecentDestinations() {
+        destinationManager?.clearRecentDestinations()
     }
 
     fun updateGreetingEnabled(enabled: Boolean) {
@@ -120,10 +169,14 @@ class SettingsViewModel(
         }
     }
 
-    fun updateVehicleCare(odometerKm: Int, nextServiceKm: Int, fuelReminder: Boolean) {
+    fun updateVehicleCare(odometerKm: Double, nextServiceKm: Int, fuelReminder: Boolean) {
         viewModelScope.launch {
             preferencesRepository.updateVehicleCare(odometerKm, nextServiceKm, fuelReminder)
         }
+    }
+
+    fun updateVehicleCare(odometerKm: Int, nextServiceKm: Int, fuelReminder: Boolean) {
+        updateVehicleCare(odometerKm.toDouble(), nextServiceKm, fuelReminder)
     }
 
     fun updateFavoriteAddresses(home: String, office: String) {
@@ -176,7 +229,8 @@ class SettingsViewModel(
         private val preferencesRepository: DriveMatePreferencesRepository,
         private val greetingController: GreetingController,
         private val greetingGenerator: GreetingGenerator,
-        private val ttsManager: GreetingTtsManager
+        private val ttsManager: GreetingTtsManager,
+        private val destinationManager: DestinationManager? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -184,7 +238,8 @@ class SettingsViewModel(
                 preferencesRepository,
                 greetingController,
                 greetingGenerator,
-                ttsManager
+                ttsManager,
+                destinationManager
             ) as T
         }
     }

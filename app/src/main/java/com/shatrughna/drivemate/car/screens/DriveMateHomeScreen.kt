@@ -74,82 +74,67 @@ class DriveMateHomeScreen(carContext: CarContext) : Screen(carContext) {
                 .build()
         )
 
-        // 2. Driver & Vehicle Greeting Row
-        val driverName = currentSettings.driverName.ifBlank { "Driver" }
-        val vehicleName = currentSettings.fullVehicleName.ifBlank { "Tata Nexon" }
+        // 2. Search Destination (Categories)
         listBuilder.addItem(
             Row.Builder()
-                .setTitle("Welcome, $driverName")
-                .addText("$vehicleName • Active Companion")
-                .build()
-        )
-
-        // 3. Live Weather Row
-        val weatherText = if (currentWeather.isAvailable) {
-            "${currentWeather.displayTemperature} • ${currentWeather.conditionText} in ${currentWeather.cityName.ifBlank { "Local" }}"
-        } else {
-            "Weather unavailable"
-        }
-        listBuilder.addItem(
-            Row.Builder()
-                .setTitle("🌤️ Weather")
-                .addText(weatherText)
+                .setTitle("📍 Search Destination")
+                .addText("Petrol pump, Tata service, Airport, Food")
                 .setOnClickListener {
-                    screenManager.push(CarWeatherScreen(carContext, currentWeather))
+                    screenManager.push(CarDestinationSearchScreen(carContext))
                 }
                 .build()
         )
 
-        // 4. Trip Statistics Row
+        // 3. Recent Destinations
+        listBuilder.addItem(
+            Row.Builder()
+                .setTitle("🕘 Recent Destinations")
+                .addText("Quickly resume recent drives")
+                .setOnClickListener {
+                    screenManager.push(CarRecentDestinationsScreen(carContext))
+                }
+                .build()
+        )
+
+        // 4. Suggested For You
+        listBuilder.addItem(
+            Row.Builder()
+                .setTitle("⭐ Suggested For You")
+                .addText("Contextual suggestions & saved shortcuts")
+                .setOnClickListener {
+                    screenManager.push(CarSuggestedDestinationsScreen(carContext, currentSettings))
+                }
+                .build()
+        )
+
+        // 5. Trip Statistics Row
         val tripMins = stats.activeTripDurationSeconds / 60
         val tripDist = String.format("%.1f", stats.activeTripDistanceKm)
         listBuilder.addItem(
             Row.Builder()
-                .setTitle("🚗 Active Trip")
-                .addText("$tripDist km driven • $tripMins min")
+                .setTitle("🚗 Trip & Vehicle Status")
+                .addText("$tripDist km driven • $tripMins min active")
                 .setOnClickListener {
                     screenManager.push(CarTripStatusScreen(carContext))
                 }
                 .build()
         )
 
-        // 5. Quick Navigation: Home
-        val homeAddr = currentSettings.homeAddress.ifBlank { "Home" }
-        listBuilder.addItem(
-            Row.Builder()
-                .setTitle("🏠 Navigate to Home")
-                .addText(homeAddr)
-                .setOnClickListener {
-                    app.destinationManager.launchNavigationQuery(carContext, homeAddr)
-                }
-                .build()
-        )
-
-        // 6. Quick Navigation: Office
-        val officeAddr = currentSettings.officeAddress.ifBlank { "Office" }
-        listBuilder.addItem(
-            Row.Builder()
-                .setTitle("🏢 Navigate to Office")
-                .addText(officeAddr)
-                .setOnClickListener {
-                    app.destinationManager.launchNavigationQuery(carContext, officeAddr)
-                }
-                .build()
-        )
-
-        // If parked location exists, offer Find My Car row
-        if (currentSettings.hasParkedLocation) {
-            val parkedAddr = currentSettings.lastParkedAddress ?: "Saved parking coordinates"
-            listBuilder.addItem(
-                Row.Builder()
-                    .setTitle("📍 Find My Car")
-                    .addText(parkedAddr)
-                    .setOnClickListener {
-                        screenManager.push(CarFindMyCarScreen(carContext, currentSettings))
-                    }
-                    .build()
-            )
+        // 6. Live Weather Row
+        val weatherText = if (currentWeather.isAvailable) {
+            "${currentWeather.displayTemperature} • ${currentWeather.conditionText} in ${currentWeather.cityName.ifBlank { "Current Location" }}"
+        } else {
+            "Weather unavailable"
         }
+        listBuilder.addItem(
+            Row.Builder()
+                .setTitle("🌤️ Live Weather")
+                .addText(weatherText)
+                .setOnClickListener {
+                    screenManager.push(CarWeatherScreen(carContext, currentWeather))
+                }
+                .build()
+        )
 
         val header = Header.Builder()
             .setTitle("DriveMate • Tata Nexon")

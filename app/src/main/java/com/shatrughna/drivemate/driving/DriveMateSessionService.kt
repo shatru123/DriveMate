@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
@@ -33,6 +34,10 @@ class DriveMateSessionService : Service() {
 
         const val ACTION_START = "com.shatrughna.drivemate.action.START_SERVICE"
         const val ACTION_STOP = "com.shatrughna.drivemate.action.STOP_SERVICE"
+
+        @Volatile
+        var isServiceRunning = false
+            private set
 
         fun startService(context: Context) {
             val intent = Intent(context, DriveMateSessionService::class.java).apply {
@@ -61,7 +66,7 @@ class DriveMateSessionService : Service() {
         }
     }
 
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -73,13 +78,21 @@ class DriveMateSessionService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
+            AppLogger.i(AppLogger.Tag.SESSION, "DriveMateSessionService received STOP action.")
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
         }
 
         try {
-            startForeground(NOTIFICATION_ID, buildNotification("Monitoring vehicle connection..."))
+            val notification = buildNotification("Monitoring vehicle connection...")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val fgsType = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+                startForeground(NOTIFICATION_ID, notification, fgsType)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+            isServiceRunning = true
         } catch (e: Exception) {
             AppLogger.e(AppLogger.Tag.SESSION, "Failed to call startForeground: ${e.message}", e)
             stopSelf()
@@ -105,18 +118,21 @@ class DriveMateSessionService : Service() {
                         is CarConnectionState.Disconnected -> "Driving session completed"
                         CarConnectionState.Unknown -> "DriveMate Active Companion"
                     }
-                    val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                    notificationManager.notify(NOTIFICATION_ID, buildNotification(notificationText))
+                    val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+                    notificationManager?.notify(NOTIFICATION_ID, buildNotification(notificationText))
                 }
             }
         }
 
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        isServiceRunning = false
         serviceScope.cancel()
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+        notificationManager?.cancel(NOTIFICATION_ID)
         AppLogger.i(AppLogger.Tag.SESSION, "DriveMateSessionService destroyed.")
     }
 

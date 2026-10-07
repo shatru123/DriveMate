@@ -62,7 +62,8 @@ class MainActivity : ComponentActivity() {
             preferencesRepository = app.preferencesRepository,
             greetingController = app.greetingController,
             greetingGenerator = app.greetingGenerator,
-            ttsManager = app.ttsManager
+            ttsManager = app.ttsManager,
+            destinationManager = app.destinationManager
         )
     }
 

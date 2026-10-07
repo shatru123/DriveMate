@@ -41,8 +41,10 @@ import com.shatrughna.drivemate.ui.components.ActiveTripTickerCard
 import com.shatrughna.drivemate.ui.components.ConnectionStatusCard
 import com.shatrughna.drivemate.ui.components.CreatorCard
 import com.shatrughna.drivemate.ui.components.DailyDrivingStatsCard
+import com.shatrughna.drivemate.ui.components.DynamicDestinationSearchCard
 import com.shatrughna.drivemate.ui.components.GreetingStatusCard
 import com.shatrughna.drivemate.ui.components.SmartDestinationRow
+import com.shatrughna.drivemate.ui.components.ThreeDimensionalVehicleCard
 import com.shatrughna.drivemate.ui.components.VehicleCareSummaryCard
 import com.shatrughna.drivemate.ui.components.VehicleHeaderCard
 import com.shatrughna.drivemate.ui.components.WeatherSummaryCard
@@ -86,6 +88,7 @@ fun DashboardScreen(
     val weather by viewModel.weather.collectAsStateWithLifecycle()
     val tripStats by viewModel.tripStats.collectAsStateWithLifecycle()
     val destinations by viewModel.suggestedDestinations.collectAsStateWithLifecycle()
+    val recentDestinations by viewModel.recentDestinations.collectAsStateWithLifecycle()
     val careInfo by viewModel.vehicleCareInfo.collectAsStateWithLifecycle()
     val voiceState by viewModel.voiceAssistantState.collectAsStateWithLifecycle()
     val latestTrip by viewModel.latestTrip.collectAsStateWithLifecycle()
@@ -210,8 +213,8 @@ fun DashboardScreen(
                 ActiveTripTickerCard(tripStats = tripStats)
             }
 
-            // 1. Vehicle info card
-            VehicleHeaderCard(settings = settings)
+            // 1. 3D Perspective Hero Vehicle Card
+            ThreeDimensionalVehicleCard(settings = settings)
 
             // 2. Weather card (V2)
             WeatherSummaryCard(
@@ -237,13 +240,13 @@ fun DashboardScreen(
                 onToggleSimulation = viewModel::toggleSimulation
             )
 
-            // 4. Smart Suggested Destinations (V2)
-            if (destinations.isNotEmpty()) {
-                SmartDestinationRow(
-                    destinations = destinations,
-                    onSelectDestination = { dest -> viewModel.launchDestination(context, dest) }
-                )
-            }
+            // 4. Dynamic Destination Search & Contextual Suggestions
+            DynamicDestinationSearchCard(
+                suggestedDestinations = destinations,
+                recentDestinations = recentDestinations,
+                onSearchDestination = { query -> viewModel.searchAndLaunchDestination(context, query) },
+                onSelectDestination = { dest -> viewModel.launchDestination(context, dest) }
+            )
 
             // 5. Greeting card with active quote & preview
             GreetingStatusCard(

@@ -57,9 +57,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.LocalGasStation
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.shatrughna.drivemate.car.CarConnectionState
 import com.shatrughna.drivemate.data.model.Destination
-import com.shatrughna.drivemate.data.model.DestinationType
+import com.shatrughna.drivemate.data.model.DestinationCategory
 import com.shatrughna.drivemate.data.model.DriveMateSettings
 import com.shatrughna.drivemate.data.model.TripStats
 import com.shatrughna.drivemate.data.model.VehicleCareInfo
@@ -310,6 +319,295 @@ fun ActiveTripTickerCard(
 }
 
 @Composable
+fun DynamicDestinationSearchCard(
+    suggestedDestinations: List<Destination>,
+    recentDestinations: List<Destination>,
+    onSearchDestination: (String) -> Unit,
+    onSelectDestination: (Destination) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var searchQuery by remember { mutableStateOf("") }
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, DarkBorder)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "DESTINATIONS & NAVIGATION",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = NexonCyanPrimary
+                )
+                Text(
+                    text = "Google Maps / AA",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = TextMuted
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Search Text Field
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = {
+                    Text(
+                        text = "Search destination (e.g. Airport, Petrol Pump)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextMuted
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = NexonCyanPrimary
+                    )
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotBlank()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(
+                                imageVector = Icons.Default.Clear,
+                                contentDescription = "Clear",
+                                tint = TextSecondary
+                            )
+                        }
+                    }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = NexonCyanPrimary,
+                    unfocusedBorderColor = DarkBorder,
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary
+                )
+            )
+
+            if (searchQuery.isNotBlank()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Button(
+                    onClick = {
+                        onSearchDestination(searchQuery.trim())
+                        searchQuery = ""
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = NexonCyanPrimary)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Navigation,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Navigate to \"$searchQuery\"",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                }
+            }
+
+            // Quick Category Shortcuts
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf(
+                    "Petrol Pump" to Icons.Default.LocalGasStation,
+                    "Tata Service" to Icons.Default.Build,
+                    "Airport" to Icons.Default.Navigation
+                ).forEach { (label, icon) ->
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(DarkSurfaceVariant)
+                            .border(1.dp, DarkBorder, RoundedCornerShape(8.dp))
+                            .clickable { onSearchDestination(label) }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = NexonCyanPrimary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextPrimary,
+                                fontSize = 11.sp,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Suggested Destinations
+            if (suggestedDestinations.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Text(
+                    text = "SUGGESTED FOR THIS DRIVE",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextSecondary,
+                    fontSize = 11.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    suggestedDestinations.take(2).forEach { dest ->
+                        Card(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { onSelectDestination(dest) },
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
+                            border = BorderStroke(0.8.dp, DarkBorder)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF1E293B)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = when (dest.category) {
+                                            DestinationCategory.HOME -> Icons.Default.Home
+                                            DestinationCategory.OFFICE -> Icons.Default.Work
+                                            DestinationCategory.FUEL -> Icons.Default.LocalGasStation
+                                            DestinationCategory.SERVICE_CENTER -> Icons.Default.Build
+                                            else -> Icons.Default.Navigation
+                                        },
+                                        contentDescription = null,
+                                        tint = NexonCyanPrimary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = dest.title,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = TextPrimary,
+                                        maxLines = 1
+                                    )
+                                    Text(
+                                        text = dest.subtitle,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextSecondary,
+                                        fontSize = 10.sp,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Recent Destinations List
+            if (recentDestinations.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.History,
+                        contentDescription = null,
+                        tint = TextMuted,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "RECENT DESTINATIONS",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextMuted,
+                        fontSize = 11.sp
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    recentDestinations.take(3).forEach { recent ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(DarkSurfaceVariant.copy(alpha = 0.5f))
+                                .clickable { onSelectDestination(recent) }
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Navigation,
+                                    contentDescription = null,
+                                    tint = NexonCyanPrimary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = recent.name,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextPrimary,
+                                    maxLines = 1
+                                )
+                            }
+                            Text(
+                                text = "Navigate",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = NexonCyanPrimary,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun SmartDestinationRow(
     destinations: List<Destination>,
     onSelectDestination: (Destination) -> Unit,
@@ -363,9 +661,11 @@ fun SmartDestinationRow(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = when (dest.iconType) {
-                                    DestinationType.HOME -> Icons.Default.Home
-                                    DestinationType.OFFICE -> Icons.Default.Work
+                                imageVector = when (dest.category) {
+                                    DestinationCategory.HOME -> Icons.Default.Home
+                                    DestinationCategory.OFFICE -> Icons.Default.Work
+                                    DestinationCategory.FUEL -> Icons.Default.LocalGasStation
+                                    DestinationCategory.SERVICE_CENTER -> Icons.Default.Build
                                     else -> Icons.Default.Navigation
                                 },
                                 contentDescription = null,
@@ -400,7 +700,7 @@ fun VehicleCareSummaryCard(
     careInfo: VehicleCareInfo,
     modifier: Modifier = Modifier
 ) {
-    val progress = (careInfo.currentOdometerKm % 15000) / 15000f
+    val progress = ((careInfo.currentOdometerKm % 15000) / 15000.0).toFloat()
 
     Card(
         modifier = modifier.fillMaxWidth(),

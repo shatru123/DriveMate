@@ -5,6 +5,7 @@ import com.shatrughna.drivemate.driving.DrivingSessionManager
 import com.shatrughna.drivemate.greeting.GreetingController
 import com.shatrughna.drivemate.greeting.GreetingTtsManager
 import com.shatrughna.drivemate.util.AppLogger
+import com.shatrughna.drivemate.voice.AudioInputCoordinator
 import com.shatrughna.drivemate.voice.VoiceAssistantManager
 import com.shatrughna.drivemate.voice.VoiceAssistantState
 import kotlinx.coroutines.CoroutineScope
@@ -48,6 +49,7 @@ class WakeWordManagerImpl(
     private val ttsManager: GreetingTtsManager,
     private val sessionManager: DrivingSessionManager,
     private val preferencesRepository: DriveMatePreferencesRepository,
+    private val audioCoordinator: AudioInputCoordinator? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 ) : WakeWordManager, WakeWordListener {
 
@@ -56,7 +58,6 @@ class WakeWordManagerImpl(
 
     private val mutex = Mutex()
     private var commandTimeoutJob: Job? = null
-    private var isStarted = false
 
     init {
         wakeWordEngine.setListener(this)
@@ -118,6 +119,11 @@ class WakeWordManagerImpl(
                     return@withLock
                 }
 
+                if (audioCoordinator != null && !audioCoordinator.requestWakeWordListening()) {
+                    AppLogger.w(AppLogger.Tag.APP, "AudioCoordinator denied microphone for WakeWordEngine.")
+                    return@withLock
+                }
+
                 if (!wakeWordEngine.isRunning) {
                     wakeWordEngine.start()
                     _state.value = WakeWordState.LISTENING_FOR_WAKE_WORD
@@ -132,6 +138,7 @@ class WakeWordManagerImpl(
                 commandTimeoutJob?.cancel()
                 commandTimeoutJob = null
                 wakeWordEngine.stop()
+                audioCoordinator?.releaseAll()
                 _state.value = WakeWordState.STOPPED
             }
         }
@@ -144,17 +151,27 @@ class WakeWordManagerImpl(
             // Priority coordination: immediately halt greeting speech so driver's command takes precedence
             greetingController.stopSpeaking()
 
-            // Stop hotword recognition engine during interaction
+            // Synchronously halt hotword recognition engine during interaction
             wakeWordEngine.stop()
+            audioCoordinator?.onWakeWordDetected()
 
             if (!trailingCommand.isNullOrBlank()) {
-                // Compound command in one breath ("Hey DriveMate, navigate to office")
+                // Compound command in one breath ("Hey DriveMate, navigate to Pune airport")
                 _state.value = WakeWordState.PROCESSING
+                audioCoordinator?.setProcessing()
                 voiceAssistantManager.processTextCommand(trailingCommand)
             } else {
-                // Direct activation -> Respond "Yes?" and await command
+                // Direct standalone activation -> Respond "Yes?" and await command
                 _state.value = WakeWordState.WAKE_WORD_DETECTED
+                audioCoordinator?.onTtsStarted()
                 ttsManager.speak("Yes?")
+                audioCoordinator?.onTtsCompleted()
+
+                if (audioCoordinator != null && !audioCoordinator.requestCommandListening()) {
+                    AppLogger.w(AppLogger.Tag.APP, "AudioCoordinator denied command listening.")
+                    resumeWakeWordListening()
+                    return@launch
+                }
 
                 _state.value = WakeWordState.LISTENING_FOR_COMMAND
                 voiceAssistantManager.startListening()
@@ -176,6 +193,7 @@ class WakeWordManagerImpl(
     override fun onError(error: String) {
         AppLogger.w(AppLogger.Tag.APP, "WakeWordManager: Engine error: $error")
         _state.value = WakeWordState.ERROR
+        audioCoordinator?.setError(error)
     }
 
     private fun resumeWakeWordListening() {
@@ -183,12 +201,15 @@ class WakeWordManagerImpl(
             if (sessionManager.isSessionActive.value) {
                 val settings = preferencesRepository.settingsFlow.first()
                 if (settings.heyDriveMateEnabled) {
-                    delay(500L) // Brief delay to let audio channel clear
-                    wakeWordEngine.start()
-                    _state.value = WakeWordState.LISTENING_FOR_WAKE_WORD
+                    delay(400L) // Brief delay to let audio channel clear
+                    if (audioCoordinator == null || audioCoordinator.requestWakeWordListening()) {
+                        wakeWordEngine.start()
+                        _state.value = WakeWordState.LISTENING_FOR_WAKE_WORD
+                    }
                 }
             } else {
                 _state.value = WakeWordState.STOPPED
+                audioCoordinator?.releaseAll()
             }
         }
     }
