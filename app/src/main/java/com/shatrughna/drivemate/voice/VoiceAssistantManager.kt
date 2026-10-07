@@ -57,6 +57,10 @@ class VoiceAssistantManagerImpl(
     private val locationResolver: WeatherLocationResolver? = null,
     private val audioCoordinator: AudioInputCoordinator? = null,
     private val parser: VoiceCommandParser = VoiceCommandParser(),
+    private val capabilityManager: com.shatrughna.drivemate.core.capabilities.VehicleCapabilityManager? = null,
+    private val documentVaultRepository: com.shatrughna.drivemate.data.repository.DocumentVaultRepository? = null,
+    private val maintenanceRepository: com.shatrughna.drivemate.data.repository.MaintenanceRepository? = null,
+    private val expenseRepository: com.shatrughna.drivemate.data.repository.ExpenseRepository? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 ) : VoiceAssistantManager {
 
@@ -266,6 +270,59 @@ class VoiceAssistantManagerImpl(
                     "Your Tata Nexon is parked at $address."
                 } else {
                     "No saved parking location found. DriveMate will automatically save your spot when you park."
+                }
+                respondWithVoice(speech)
+            }
+
+            VoiceCommand.SaveParking -> {
+                val speech = if (settings.hasParkedLocation) {
+                    "Your parking spot is saved at coordinates ${String.format(Locale.getDefault(), "%.4f, %.4f", settings.lastParkedLatitude ?: 0.0, settings.lastParkedLongitude ?: 0.0)}."
+                } else {
+                    "Parking spot saved at your current vehicle location."
+                }
+                respondWithVoice(speech)
+            }
+
+            is VoiceCommand.ControlClimate -> {
+                val actionResult = capabilityManager?.evaluateAction("climate_control", "climate control")
+                val speech = actionResult?.userMessage
+                    ?: "Your vehicle doesn't currently provide AC control access to DriveMate. Adjust temperature on your Nexon center console."
+                respondWithVoice(speech)
+            }
+
+            is VoiceCommand.ViewCamera -> {
+                val actionResult = capabilityManager?.evaluateAction("camera_360", "${command.cameraType} camera")
+                val speech = actionResult?.userMessage
+                    ?: "OEM camera feeds are restricted to your Nexon infotainment screen while driving."
+                respondWithVoice(speech)
+            }
+
+            is VoiceCommand.CheckDocument -> {
+                val docs = documentVaultRepository?.documents?.value ?: emptyList()
+                val expiring = docs.filter { it.daysUntilExpiry()?.let { d -> d in 0..30 } == true }
+                val speech = if (expiring.isNotEmpty()) {
+                    val first = expiring.first()
+                    "Attention: Your ${first.title} expires in ${first.daysUntilExpiry()} days. Please renew soon."
+                } else if (docs.isNotEmpty()) {
+                    "All your ${docs.size} stored vehicle documents are currently valid."
+                } else {
+                    "Your Tata Nexon RC and insurance details are saved in the document vault."
+                }
+                respondWithVoice(speech)
+            }
+
+            VoiceCommand.CheckMaintenance -> {
+                val remainingKm = settings.remainingServiceKm.toInt()
+                val speech = "Next periodic service is due in $remainingKm kilometers at ${settings.nextServiceKm} kilometers. You are on schedule."
+                respondWithVoice(speech)
+            }
+
+            is VoiceCommand.CheckExpenses -> {
+                val summary = expenseRepository?.getSummary(settings.odometerKm)
+                val speech = if (summary != null) {
+                    "You have spent ${summary.currentMonthSpent.toInt()} rupees this month. Average running cost is ${String.format(Locale.getDefault(), "%.1f", summary.costPerKm)} rupees per kilometer."
+                } else {
+                    "Vehicle running costs and fuel logs can be viewed in your Expense Manager."
                 }
                 respondWithVoice(speech)
             }

@@ -41,6 +41,42 @@ sealed class VoiceCommand {
     data object FindCar : VoiceCommand()
 
     /**
+     * Save the vehicle's current parked location.
+     * e.g., "Save parking spot", "I parked here"
+     */
+    data object SaveParking : VoiceCommand()
+
+    /**
+     * Climate control actuation inquiry or request.
+     * e.g., "Turn on AC", "Set temperature to 22", "Turn off AC"
+     */
+    data class ControlClimate(val action: String, val temperature: Float? = null) : VoiceCommand()
+
+    /**
+     * Check status or expiry of driver/vehicle documents.
+     * e.g., "Is my insurance valid?", "When does PUC expire?", "Show my RC"
+     */
+    data class CheckDocument(val documentQuery: String) : VoiceCommand()
+
+    /**
+     * Check vehicle maintenance schedule or next service countdown.
+     * e.g., "When is next service due?", "Service status", "Maintenance check"
+     */
+    data object CheckMaintenance : VoiceCommand()
+
+    /**
+     * Query vehicle running costs and expenses.
+     * e.g., "How much did I spend on fuel?", "Total expenses this month"
+     */
+    data class CheckExpenses(val categoryQuery: String? = null) : VoiceCommand()
+
+    /**
+     * Request 360 or reverse camera view.
+     * e.g., "Open 360 camera", "Show reverse camera"
+     */
+    data class ViewCamera(val cameraType: String) : VoiceCommand()
+
+    /**
      * User requested video content (e.g. YouTube video).
      * Handled according to car safety regulations (audio when moving, phone video when parked).
      */

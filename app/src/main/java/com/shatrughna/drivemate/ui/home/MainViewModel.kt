@@ -32,6 +32,23 @@ import com.shatrughna.drivemate.voice.VoiceAssistantState
 import com.shatrughna.drivemate.voice.wakeword.WakeWordManager
 import com.shatrughna.drivemate.voice.wakeword.WakeWordState
 import com.shatrughna.drivemate.weather.WeatherRepository
+import com.shatrughna.drivemate.core.capabilities.ClimateControlProvider
+import com.shatrughna.drivemate.core.capabilities.VehicleCapabilitiesState
+import com.shatrughna.drivemate.core.capabilities.VehicleCapabilityManager
+import com.shatrughna.drivemate.core.insights.AiCarInsight
+import com.shatrughna.drivemate.core.insights.AiCarInsightsEngine
+import com.shatrughna.drivemate.data.analytics.DrivingAnalyticsEngine
+import com.shatrughna.drivemate.data.analytics.MonthlyDrivingSummary
+import com.shatrughna.drivemate.data.model.ExpenseSummary
+import com.shatrughna.drivemate.data.model.ServiceRecord
+import com.shatrughna.drivemate.data.model.ServiceSchedule
+import com.shatrughna.drivemate.data.model.VehicleDocument
+import com.shatrughna.drivemate.data.model.VehicleExpense
+import com.shatrughna.drivemate.data.repository.DocumentVaultRepository
+import com.shatrughna.drivemate.data.repository.ExpenseRepository
+import com.shatrughna.drivemate.data.repository.MaintenanceRepository
+import com.shatrughna.drivemate.data.timeline.VehicleTimelineItem
+import com.shatrughna.drivemate.data.timeline.VehicleTimelineRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -54,7 +71,13 @@ class MainViewModel(
     private val voiceAssistantManager: VoiceAssistantManager? = null,
     private val tripHistoryRepository: TripHistoryRepository? = null,
     private val locationResolver: WeatherLocationResolver? = null,
-    private val wakeWordManager: WakeWordManager? = null
+    private val wakeWordManager: WakeWordManager? = null,
+    private val capabilityManager: VehicleCapabilityManager? = null,
+    val climateControlProvider: ClimateControlProvider? = null,
+    private val documentVaultRepository: DocumentVaultRepository? = null,
+    private val maintenanceRepository: MaintenanceRepository? = null,
+    private val expenseRepository: ExpenseRepository? = null,
+    private val timelineRepository: VehicleTimelineRepository? = null
 ) : ViewModel() {
 
     val settings: StateFlow<DriveMateSettings> = preferencesRepository.settingsFlow
@@ -111,6 +134,107 @@ class MainViewModel(
     )
 
     val recentDestinations: StateFlow<List<Destination>> = destinationManager.recentDestinations
+
+    // V4 Vehicle Capabilities Flow
+    val capabilities: StateFlow<VehicleCapabilitiesState> = capabilityManager?.capabilities
+        ?: MutableStateFlow(VehicleCapabilitiesState())
+
+    // V4 Documents Flow
+    val documents: StateFlow<List<VehicleDocument>> = documentVaultRepository?.documents
+        ?: MutableStateFlow(emptyList())
+
+    // V4 Maintenance Flows
+    val serviceSchedule: StateFlow<ServiceSchedule> = maintenanceRepository?.serviceSchedule
+        ?: MutableStateFlow(ServiceSchedule())
+    val serviceRecords: StateFlow<List<ServiceRecord>> = maintenanceRepository?.serviceRecords
+        ?: MutableStateFlow(emptyList())
+
+    // V4 Expense Flows
+    val expenses: StateFlow<List<VehicleExpense>> = expenseRepository?.expenses
+        ?: MutableStateFlow(emptyList())
+    val expenseSummary: StateFlow<ExpenseSummary> = combine(expenses, settings) { _, sett ->
+        expenseRepository?.getSummary(sett.odometerKm)
+            ?: ExpenseSummary(0.0, 0.0, emptyMap(), 0.0)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = ExpenseSummary(0.0, 0.0, emptyMap(), 0.0)
+    )
+
+    // V4 Timeline Flow
+    val timelineItems: StateFlow<List<VehicleTimelineItem>> = timelineRepository?.timelineItems
+        ?: MutableStateFlow(emptyList())
+
+    // V4 Monthly Driving Analytics
+    val monthlyDrivingSummary: StateFlow<MonthlyDrivingSummary> = combine(
+        tripHistoryRepository?.recentTrips ?: MutableStateFlow(emptyList())
+    ) { (trips) ->
+        DrivingAnalyticsEngine.computeMonthlySummary(trips)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = DrivingAnalyticsEngine.computeMonthlySummary(emptyList())
+    )
+
+    // V4 Deterministic AI Insights
+    val topInsight: StateFlow<AiCarInsight?> = combine(
+        settings,
+        documents,
+        serviceSchedule,
+        expenseSummary,
+        monthlyDrivingSummary
+    ) { sett, docs, sched, expSum, driveSum ->
+        AiCarInsightsEngine.generateInsights(sett.odometerKm, docs, sched, expSum, driveSum).firstOrNull()
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = null
+    )
+
+    fun addDocument(doc: VehicleDocument) {
+        viewModelScope.launch {
+            documentVaultRepository?.addOrUpdateDocument(doc)
+        }
+    }
+
+    fun deleteDocument(id: String) {
+        viewModelScope.launch {
+            documentVaultRepository?.deleteDocument(id)
+        }
+    }
+
+    fun addServiceRecord(record: ServiceRecord) {
+        viewModelScope.launch {
+            maintenanceRepository?.addServiceRecord(record)
+        }
+    }
+
+    fun deleteServiceRecord(id: String) {
+        viewModelScope.launch {
+            maintenanceRepository?.deleteServiceRecord(id)
+        }
+    }
+
+    fun addExpense(expense: VehicleExpense) {
+        viewModelScope.launch {
+            expenseRepository?.addExpense(expense)
+        }
+    }
+
+    fun deleteExpense(id: String) {
+        viewModelScope.launch {
+            expenseRepository?.deleteExpense(id)
+        }
+    }
+
+    fun saveCurrentParkingLocation() {
+        viewModelScope.launch {
+            val loc = locationProvider?.getCurrentLocation()
+            if (loc != null) {
+                preferencesRepository.updateLastParkedLocation(loc.latitude, loc.longitude, "GPS Location Saved")
+            }
+        }
+    }
 
     // Dynamically prepared greeting text for the dashboard
     val currentGreetingText: StateFlow<String> = combine(
@@ -266,7 +390,13 @@ class MainViewModel(
         private val voiceAssistantManager: VoiceAssistantManager? = null,
         private val tripHistoryRepository: TripHistoryRepository? = null,
         private val locationResolver: WeatherLocationResolver? = null,
-        private val wakeWordManager: WakeWordManager? = null
+        private val wakeWordManager: WakeWordManager? = null,
+        private val capabilityManager: VehicleCapabilityManager? = null,
+        private val climateControlProvider: ClimateControlProvider? = null,
+        private val documentVaultRepository: DocumentVaultRepository? = null,
+        private val maintenanceRepository: MaintenanceRepository? = null,
+        private val expenseRepository: ExpenseRepository? = null,
+        private val timelineRepository: VehicleTimelineRepository? = null
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -284,7 +414,13 @@ class MainViewModel(
                 voiceAssistantManager,
                 tripHistoryRepository,
                 locationResolver,
-                wakeWordManager
+                wakeWordManager,
+                capabilityManager,
+                climateControlProvider,
+                documentVaultRepository,
+                maintenanceRepository,
+                expenseRepository,
+                timelineRepository
             ) as T
         }
     }

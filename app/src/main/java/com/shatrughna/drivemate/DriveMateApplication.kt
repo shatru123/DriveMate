@@ -105,6 +105,30 @@ class DriveMateApplication : Application() {
     lateinit var wakeWordManager: WakeWordManager
         private set
 
+    lateinit var capabilityManager: com.shatrughna.drivemate.core.capabilities.VehicleCapabilityManager
+        private set
+
+    lateinit var climateControlProvider: com.shatrughna.drivemate.core.capabilities.ClimateControlProvider
+        private set
+
+    lateinit var cameraProvider: com.shatrughna.drivemate.core.capabilities.VehicleCameraProvider
+        private set
+
+    lateinit var documentVaultRepository: com.shatrughna.drivemate.data.repository.DocumentVaultRepository
+        private set
+
+    lateinit var maintenanceRepository: com.shatrughna.drivemate.data.repository.MaintenanceRepository
+        private set
+
+    lateinit var expenseRepository: com.shatrughna.drivemate.data.repository.ExpenseRepository
+        private set
+
+    lateinit var timelineRepository: com.shatrughna.drivemate.data.timeline.VehicleTimelineRepository
+        private set
+
+    lateinit var biometricSecurityManager: com.shatrughna.drivemate.core.security.BiometricSecurityManager
+        private set
+
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate() {
@@ -124,6 +148,21 @@ class DriveMateApplication : Application() {
         locationResolver = WeatherLocationResolverImpl(locationProvider)
         tripHistoryRepository = TripHistoryRepositoryImpl(this)
         audioInputCoordinator = AudioInputCoordinatorImpl()
+
+        // DriveMate V4 Capabilities & Providers
+        capabilityManager = com.shatrughna.drivemate.core.capabilities.VehicleCapabilityManagerImpl()
+        climateControlProvider = com.shatrughna.drivemate.core.capabilities.VehicleClimateControlProviderImpl(capabilityManager)
+        cameraProvider = com.shatrughna.drivemate.core.capabilities.VehicleCameraProviderImpl(capabilityManager)
+        documentVaultRepository = com.shatrughna.drivemate.data.repository.DocumentVaultRepositoryImpl(this)
+        maintenanceRepository = com.shatrughna.drivemate.data.repository.MaintenanceRepositoryImpl(this)
+        expenseRepository = com.shatrughna.drivemate.data.repository.ExpenseRepositoryImpl(this)
+        timelineRepository = com.shatrughna.drivemate.data.timeline.VehicleTimelineRepositoryImpl(
+            tripHistoryRepository = tripHistoryRepository,
+            expenseRepository = expenseRepository,
+            maintenanceRepository = maintenanceRepository,
+            documentVaultRepository = documentVaultRepository
+        )
+        biometricSecurityManager = com.shatrughna.drivemate.core.security.BiometricSecurityManager(this)
 
         tripTracker = TripTrackerImpl(
             sessionManager = sessionManager,
@@ -153,7 +192,11 @@ class DriveMateApplication : Application() {
             tripTracker = tripTracker,
             carConnectionManager = carConnectionManager,
             locationResolver = locationResolver,
-            audioCoordinator = audioInputCoordinator
+            audioCoordinator = audioInputCoordinator,
+            capabilityManager = capabilityManager,
+            documentVaultRepository = documentVaultRepository,
+            maintenanceRepository = maintenanceRepository,
+            expenseRepository = expenseRepository
         )
 
         wakeWordEngine = SpeechRecognizerWakeWordEngine(this)

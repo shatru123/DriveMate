@@ -1,0 +1,192 @@
+package com.shatrughna.drivemate.data.repository
+
+import android.content.Context
+import com.shatrughna.drivemate.data.model.DocumentType
+import com.shatrughna.drivemate.data.model.VehicleDocument
+import com.shatrughna.drivemate.util.AppLogger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.util.concurrent.TimeUnit
+
+interface DocumentVaultRepository {
+    val documents: StateFlow<List<VehicleDocument>>
+    suspend fun addOrUpdateDocument(document: VehicleDocument)
+    suspend fun deleteDocument(id: String)
+    fun getDocument(id: String): VehicleDocument?
+}
+
+class DocumentVaultRepositoryImpl(
+    private val context: Context,
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+) : DocumentVaultRepository {
+
+    companion object {
+        private const val DIRECTORY_NAME = "documents"
+        private const val FILE_NAME = "vehicle_vault.json"
+    }
+
+    private val _documents = MutableStateFlow<List<VehicleDocument>>(emptyList())
+    override val documents: StateFlow<List<VehicleDocument>> = _documents.asStateFlow()
+
+    private val storageDir: File by lazy {
+        File(context.filesDir, DIRECTORY_NAME).apply { if (!exists()) mkdirs() }
+    }
+
+    private val storageFile: File by lazy {
+        File(storageDir, FILE_NAME)
+    }
+
+    init {
+        scope.launch {
+            loadFromDisk()
+        }
+    }
+
+    private suspend fun loadFromDisk() = withContext(Dispatchers.IO) {
+        if (!storageFile.exists()) {
+            val defaults = createSampleDocuments()
+            _documents.value = defaults
+            saveToDisk(defaults)
+            return@withContext
+        }
+        try {
+            val jsonStr = storageFile.readText()
+            val array = JSONArray(jsonStr)
+            val list = mutableListOf<VehicleDocument>()
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(
+                    VehicleDocument(
+                        id = obj.getString("id"),
+                        title = obj.getString("title"),
+                        type = DocumentType.valueOf(obj.optString("type", DocumentType.OTHER.name)),
+                        documentNumber = obj.getString("documentNumber"),
+                        issuingAuthority = obj.optString("issuingAuthority", ""),
+                        issueDateMillis = obj.optLong("issueDateMillis", System.currentTimeMillis()),
+                        expiryDateMillis = if (obj.has("expiryDateMillis") && !obj.isNull("expiryDateMillis")) obj.getLong("expiryDateMillis") else null,
+                        notes = obj.optString("notes", ""),
+                        localImagePath = if (obj.has("localImagePath") && !obj.isNull("localImagePath")) obj.getString("localImagePath") else null,
+                        isSensitive = obj.optBoolean("isSensitive", true),
+                        createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
+                        updatedAt = obj.optLong("updatedAt", System.currentTimeMillis())
+                    )
+                )
+            }
+            _documents.value = list
+        } catch (e: Exception) {
+            AppLogger.e(AppLogger.Tag.APP, "Failed to load document vault", e)
+            val fallback = createSampleDocuments()
+            _documents.value = fallback
+            saveToDisk(fallback)
+        }
+    }
+
+    override suspend fun addOrUpdateDocument(document: VehicleDocument) = withContext(Dispatchers.IO) {
+        val current = _documents.value.toMutableList()
+        val index = current.indexOfFirst { it.id == document.id }
+        if (index >= 0) {
+            current[index] = document.copy(updatedAt = System.currentTimeMillis())
+        } else {
+            current.add(0, document)
+        }
+        _documents.value = current
+        saveToDisk(current)
+    }
+
+    override suspend fun deleteDocument(id: String) = withContext(Dispatchers.IO) {
+        val current = _documents.value.toMutableList()
+        current.removeAll { it.id == id }
+        _documents.value = current
+        saveToDisk(current)
+    }
+
+    override fun getDocument(id: String): VehicleDocument? {
+        return _documents.value.find { it.id == id }
+    }
+
+    private fun saveToDisk(list: List<VehicleDocument>) {
+        try {
+            val array = JSONArray()
+            for (doc in list) {
+                val obj = JSONObject().apply {
+                    put("id", doc.id)
+                    put("title", doc.title)
+                    put("type", doc.type.name)
+                    put("documentNumber", doc.documentNumber)
+                    put("issuingAuthority", doc.issuingAuthority)
+                    put("issueDateMillis", doc.issueDateMillis)
+                    if (doc.expiryDateMillis != null) put("expiryDateMillis", doc.expiryDateMillis)
+                    put("notes", doc.notes)
+                    if (doc.localImagePath != null) put("localImagePath", doc.localImagePath)
+                    put("isSensitive", doc.isSensitive)
+                    put("createdAt", doc.createdAt)
+                    put("updatedAt", doc.updatedAt)
+                }
+                array.put(obj)
+            }
+            storageFile.writeText(array.toString(2))
+        } catch (e: Exception) {
+            AppLogger.e(AppLogger.Tag.APP, "Failed to write document vault to disk", e)
+        }
+    }
+
+    private fun createSampleDocuments(): List<VehicleDocument> {
+        val now = System.currentTimeMillis()
+        val oneDay = TimeUnit.DAYS.toMillis(1)
+        return listOf(
+            VehicleDocument(
+                id = "doc_rc_nexon",
+                title = "Tata Nexon RC Smart Card",
+                type = DocumentType.REGISTRATION_CERTIFICATE,
+                documentNumber = "MH 28 BW 1624",
+                issuingAuthority = "RTO Buldhana, Maharashtra",
+                issueDateMillis = now - (365 * oneDay),
+                expiryDateMillis = now + (3650 * oneDay), // Valid 10 years
+                notes = "Tata Nexon Creative+ S (Creative Plus Sunroof)",
+                isSensitive = true
+            ),
+            VehicleDocument(
+                id = "doc_insurance_nexon",
+                title = "Comprehensive Motor Insurance",
+                type = DocumentType.INSURANCE,
+                documentNumber = "POL-TATA-2026-98124",
+                issuingAuthority = "Tata AIG General Insurance",
+                issueDateMillis = now - (60 * oneDay),
+                expiryDateMillis = now + (305 * oneDay), // Valid ~10 months
+                notes = "Zero Dep + Engine Protect + Roadside Assistance",
+                isSensitive = true
+            ),
+            VehicleDocument(
+                id = "doc_puc_nexon",
+                title = "Pollution Under Control (PUC)",
+                type = DocumentType.PUC,
+                documentNumber = "MH28-PUC-2026-443",
+                issuingAuthority = "Govt. of Maharashtra Transport",
+                issueDateMillis = now - (160 * oneDay),
+                expiryDateMillis = now + (20 * oneDay), // Expiring in 20 days (Active alert!)
+                notes = "Emission test compliant (BS6 Phase 2)",
+                isSensitive = false
+            ),
+            VehicleDocument(
+                id = "doc_dl_shatrughna",
+                title = "Driving Licence",
+                type = DocumentType.DRIVING_LICENCE,
+                documentNumber = "MH28 20190004521",
+                issuingAuthority = "Govt. of Maharashtra",
+                issueDateMillis = now - (730 * oneDay),
+                expiryDateMillis = now + (5000 * oneDay),
+                notes = "LMV-NT + MCWG (Shatrughna Ambhore)",
+                isSensitive = true
+            )
+        )
+    }
+}

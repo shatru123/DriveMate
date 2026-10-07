@@ -5,7 +5,10 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,10 +19,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -85,6 +92,12 @@ import com.shatrughna.drivemate.ui.voice.VoiceAssistantSheet
 fun DashboardScreen(
     viewModel: MainViewModel,
     onNavigateToSettings: () -> Unit,
+    onNavigateToMyCar: () -> Unit = {},
+    onNavigateToDocuments: () -> Unit = {},
+    onNavigateToMaintenance: () -> Unit = {},
+    onNavigateToExpenses: () -> Unit = {},
+    onNavigateToAnalytics: () -> Unit = {},
+    onNavigateToParking: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -239,6 +252,63 @@ fun DashboardScreen(
             // 1. Hero 3D Perspective Vehicle Card
             ThreeDimensionalVehicleCard(settings = settings)
 
+            // V4 Central My Car Operating System Hub Launcher
+            com.shatrughna.drivemate.ui.components.DriveMateCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onNavigateToMyCar)
+                    .rememberPressScale()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(NexonCyanPrimary.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DirectionsCar,
+                                contentDescription = null,
+                                tint = NexonCyanPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.padding(start = 10.dp))
+                        Column {
+                            Text(
+                                text = "MY CAR COMMAND CENTER",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Vault • Maintenance • Expenses • Climate • Parking",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "Open My Car Hub",
+                        tint = NexonCyanPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
             // 2. 2x2 Quick Actions Grid
             AutomotiveQuickActionsGrid(
                 weather = weather,
@@ -247,9 +317,7 @@ fun DashboardScreen(
                 onNavigateActionClick = {
                     viewModel.searchAndLaunchDestination(context, "Nearby Petrol Pump")
                 },
-                onTripStatusClick = {
-                    // Quick trigger/focus
-                },
+                onTripStatusClick = onNavigateToAnalytics,
                 onWeatherActionClick = {
                     if (settings.autoDetectLocation && !viewModel.hasLocationPermission()) {
                         locationPermissionLauncher.launch(

@@ -1,0 +1,82 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+
+    <!-- Outer Automotive Shield / Dynamic Monogram "D" Contour -->
+    <path
+        android:pathData="M 30,22 L 64,22 C 84,22 96,36 96,60 C 96,84 84,98 64,98 L 30,98 Z"
+        android:strokeWidth="3.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="20"
+                android:startY="20"
+                android:endX="100"
+                android:endY="100"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#00D2D3" />
+                <item android:offset="0.5" android:color="#00E5FF" />
+                <item android:offset="1.0" android:color="#10B981" />
+            </gradient>
+        </aapt:attr>
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:startX="20"
+                android:startY="20"
+                android:endX="100"
+                android:endY="100"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#1400D2D3" />
+                <item android:offset="1.0" android:color="#0510B981" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Inner Aerodynamic Highway Trajectory Lines (Perspective road) -->
+    <path
+        android:pathData="M 44,36 L 60,36 C 72,36 78,46 78,60 C 78,74 72,84 60,84 L 44,84 Z"
+        android:fillColor="#00000000"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="46"
+                android:startY="38"
+                android:endX="76"
+                android:endY="82"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#00E5FF" />
+                <item android:offset="1.0" android:color="#00D2D3" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Center Forward Highway Apex / Speed Pulse -->
+    <path
+        android:fillColor="#00D2D3"
+        android:pathData="M 44,48 L 56,60 L 44,72 Z" />
+
+    <!-- Pulse Signal Arc -->
+    <path
+        android:pathData="M 60,50 C 65,54 65,66 60,70"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:startX="58"
+                android:startY="52"
+                android:endX="70"
+                android:endY="68"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#00E5FF" />
+                <item android:offset="1.0" android:color="#10B981" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+</vector>

@@ -224,6 +224,28 @@ fun DriveMateSectionHeader(
     }
 }
 
+@Composable
+fun DriveMateSectionHeader(
+    title: String,
+    actionText: String?,
+    modifier: Modifier = Modifier
+) {
+    DriveMateSectionHeader(
+        title = title,
+        modifier = modifier,
+        trailingContent = if (!actionText.isNullOrBlank()) {
+            {
+                Text(
+                    text = actionText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = NexonCyanPrimary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        } else null
+    )
+}
+
 /**
  * Button Style Variants.
  */
@@ -430,7 +452,7 @@ fun DriveMateIconButton(
  */
 @Composable
 fun DriveMateChip(
-    text: String,
+    label: String,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -480,7 +502,7 @@ fun DriveMateChip(
                 Spacer(modifier = Modifier.width(6.dp))
             }
             Text(
-                text = text,
+                text = label,
                 style = MaterialTheme.typography.bodySmall,
                 color = if (selected) NexonCyanPrimary else TextPrimary,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium

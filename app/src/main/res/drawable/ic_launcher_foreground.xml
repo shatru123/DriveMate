@@ -1,0 +1,70 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group
+        android:scaleX="0.65"
+        android:scaleY="0.65"
+        android:translateX="18.9"
+        android:translateY="18.9">
+
+        <!-- Outer Dynamic D Contour -->
+        <path
+            android:pathData="M 26,18 L 58,18 C 78,18 90,32 90,54 C 90,76 78,90 58,90 L 26,90 Z"
+            android:strokeWidth="4"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                    android:startX="20"
+                    android:startY="20"
+                    android:endX="90"
+                    android:endY="90"
+                    android:type="linear">
+                    <item android:offset="0.0" android:color="#00D2D3" />
+                    <item android:offset="1.0" android:color="#10B981" />
+                </gradient>
+            </aapt:attr>
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:startX="20"
+                    android:startY="20"
+                    android:endX="90"
+                    android:endY="90"
+                    android:type="linear">
+                    <item android:offset="0.0" android:color="#1A00D2D3" />
+                    <item android:offset="1.0" android:color="#1010B981" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- Inner Curve -->
+        <path
+            android:pathData="M 38,32 L 54,32 C 66,32 72,42 72,54 C 72,66 66,76 54,76 L 38,76 Z"
+            android:fillColor="#00000000"
+            android:strokeWidth="3"
+            android:strokeLineCap="round">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                    android:startX="40"
+                    android:startY="32"
+                    android:endX="70"
+                    android:endY="76"
+                    android:type="linear">
+                    <item android:offset="0.0" android:color="#00E5FF" />
+                    <item android:offset="1.0" android:color="#00D2D3" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- Speed Apex -->
+        <path
+            android:fillColor="#00D2D3"
+            android:pathData="M 38,44 L 50,54 L 38,64 Z" />
+
+    </group>
+
+</vector>

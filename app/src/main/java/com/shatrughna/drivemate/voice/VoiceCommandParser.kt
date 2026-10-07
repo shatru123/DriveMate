@@ -14,10 +14,41 @@ class VoiceCommandParser {
             return VoiceCommand.Unknown(rawInput)
         }
 
-        // 1. Parking / Find Car (Priority check before generic "find" searches)
+        // 1. Parking / Save & Find Car
+        if (input.contains("save parking") || input.contains("save my parking") || input.contains("remember where i parked") || input.contains("parked here")) {
+            return VoiceCommand.SaveParking
+        }
         val parkingKeywords = listOf("where did i park", "where is my car", "find my car", "where is my nexon", "parking location", "parked location")
         if (parkingKeywords.any { input.contains(it) }) {
             return VoiceCommand.FindCar
+        }
+
+        // 2. Camera Feeds & Surround View
+        val cameraKeywords = listOf("360 camera", "surround camera", "reverse camera", "rear camera", "front camera", "show camera", "open camera")
+        if (cameraKeywords.any { input.contains(it) }) {
+            val type = if (input.contains("reverse") || input.contains("rear")) "reverse" else if (input.contains("front")) "front" else "360"
+            return VoiceCommand.ViewCamera(type)
+        }
+
+        // 3. Climate Control & AC Actions
+        val climateActionKeywords = listOf("turn on ac", "turn ac on", "start ac", "turn off ac", "turn ac off", "stop ac", "cool the car", "set temperature", "change temperature")
+        if (climateActionKeywords.any { input.contains(it) } || (input.contains("ac") && (input.contains("on") || input.contains("off")))) {
+            val tempRegex = Regex("""(?:temperature\s+to\s+|to\s+)(\d{2}(?:\.\d)?)""")
+            val match = tempRegex.find(input)
+            val temp = match?.groupValues?.get(1)?.toFloatOrNull()
+            return VoiceCommand.ControlClimate(action = input, temperature = temp)
+        }
+
+        // 4. Vehicle & Driver Documents
+        val docKeywords = listOf("insurance", "puc", "rc smart card", "registration certificate", "driving licence", "driving license", "pollution certificate", "documents")
+        if (docKeywords.any { input.contains(it) } && (input.contains("valid") || input.contains("expire") || input.contains("check") || input.contains("status") || input.contains("show") || input.contains("when"))) {
+            return VoiceCommand.CheckDocument(input)
+        }
+
+        // 5. Vehicle Expenses & Running Costs
+        val expenseKeywords = listOf("spend on fuel", "fuel expenses", "fuel spend", "total expenses", "expense report", "running cost", "cost per km", "how much did i spend")
+        if (expenseKeywords.any { input.contains(it) }) {
+            return VoiceCommand.CheckExpenses(input)
         }
 
         // 2. YouTube Video Requests
