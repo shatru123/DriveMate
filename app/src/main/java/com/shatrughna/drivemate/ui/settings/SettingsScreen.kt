@@ -1,7 +1,13 @@
 package com.shatrughna.drivemate.ui.settings
 
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,11 +25,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DeleteSweep
@@ -32,18 +36,15 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -60,12 +61,17 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -74,17 +80,41 @@ import com.shatrughna.drivemate.data.model.GreetingStyle
 import com.shatrughna.drivemate.greeting.GreetingGeneratorImpl
 import com.shatrughna.drivemate.greeting.TemplateValidationResult
 import com.shatrughna.drivemate.ui.components.CreatorCard
+import com.shatrughna.drivemate.ui.components.DriveMateCard
+import com.shatrughna.drivemate.ui.components.DriveMateSectionHeader
+import com.shatrughna.drivemate.ui.components.rememberPressScale
 import com.shatrughna.drivemate.ui.theme.DarkBackground
 import com.shatrughna.drivemate.ui.theme.DarkBorder
 import com.shatrughna.drivemate.ui.theme.DarkSurface
 import com.shatrughna.drivemate.ui.theme.DarkSurfaceVariant
 import com.shatrughna.drivemate.ui.theme.NexonAmberAccent
 import com.shatrughna.drivemate.ui.theme.NexonCyanPrimary
+import com.shatrughna.drivemate.ui.theme.NexonEmeraldAccent
 import com.shatrughna.drivemate.ui.theme.NexonRedAccent
 import com.shatrughna.drivemate.ui.theme.TextMuted
 import com.shatrughna.drivemate.ui.theme.TextPrimary
 import com.shatrughna.drivemate.ui.theme.TextSecondary
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 
+/**
+ * Redesigned Automotive Settings Screen.
+ *
+ * Organized into structured, clean automotive control panels:
+ * 1. Driver Profile
+ * 2. Vehicle Details & Registration (Photo picker + thumbnail preview)
+ * 3. Voice Assistant & Driving Safety
+ * 4. Weather & Environmental Integration
+ * 5. Vehicle Care & Maintenance
+ * 6. Favorite Destinations & Recents
+ * 7. Welcome Greeting Experience
+ * 8. Speech & Audio Engine Tuning
+ * 9. Testing & Preview
+ * 10. Platform Safety & Limitations
+ * 11. About & Diagnostics
+ * 12. Creator Profile & Contact
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
@@ -105,6 +135,31 @@ fun SettingsScreen(
         }
     }
 
+    // Vehicle photo preview bitmap
+    val vehicleThumbnail by produceState<ImageBitmap?>(initialValue = null, settings.vehiclePhotoUri) {
+        val uriStr = settings.vehiclePhotoUri
+        if (uriStr.isNullOrBlank()) {
+            value = null
+            return@produceState
+        }
+        value = withContext(Dispatchers.IO) {
+            try {
+                if (uriStr.startsWith("content://")) {
+                    context.contentResolver.openInputStream(Uri.parse(uriStr))?.use { stream ->
+                        BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                    }
+                } else {
+                    val file = if (uriStr.startsWith("file://")) File(Uri.parse(uriStr).path ?: "") else File(uriStr)
+                    if (file.exists()) {
+                        BitmapFactory.decodeFile(file.absolutePath)?.asImageBitmap()
+                    } else null
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
     var driverNameInput by remember(settings.driverName) { mutableStateOf(settings.driverName) }
     var vehicleBrandInput by remember(settings.vehicleBrand) { mutableStateOf(settings.vehicleBrand) }
     var vehicleModelInput by remember(settings.vehicleModel) { mutableStateOf(settings.vehicleModel) }
@@ -112,7 +167,6 @@ fun SettingsScreen(
     var registrationInput by remember(settings.vehicleRegistrationNumber) { mutableStateOf(settings.vehicleRegistrationNumber) }
     var customTemplateInput by remember(settings.customGreetingTemplate) { mutableStateOf(settings.customGreetingTemplate) }
 
-    // V2 inputs
     var weatherCityInput by remember(settings.weatherCityName) { mutableStateOf(settings.weatherCityName) }
     var odometerInput by remember(settings.odometerKm) { mutableStateOf(settings.odometerKm.toString()) }
     var nextServiceInput by remember(settings.nextServiceKm) { mutableStateOf(settings.nextServiceKm.toString()) }
@@ -130,13 +184,17 @@ fun SettingsScreen(
                 ),
                 title = {
                     Text(
-                        text = "Settings",
+                        text = "Settings & Vehicle Control",
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier.rememberPressScale()
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
@@ -153,16 +211,11 @@ fun SettingsScreen(
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            // 1. Driver Section
-            SettingsSectionHeader(title = "Driver Profile")
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                border = BorderStroke(1.dp, DarkBorder),
-                shape = RoundedCornerShape(16.dp)
-            ) {
+            // 1. Driver Profile Section
+            DriveMateSectionHeader(title = "Driver Profile")
+            DriveMateCard(containerColor = DarkSurface) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     OutlinedTextField(
                         value = driverNameInput,
@@ -178,14 +231,9 @@ fun SettingsScreen(
                 }
             }
 
-            // 2. Vehicle Section
-            SettingsSectionHeader(title = "Vehicle Details")
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                border = BorderStroke(1.dp, DarkBorder),
-                shape = RoundedCornerShape(16.dp)
-            ) {
+            // 2. Vehicle Details & Registration Section
+            DriveMateSectionHeader(title = "Vehicle Details & Registration")
+            DriveMateCard(containerColor = DarkSurface) {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -240,34 +288,58 @@ fun SettingsScreen(
 
                     HorizontalDivider(color = DarkBorder)
 
-                    Row(
+                    // Photo selector with visual preview thumbnail
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Vehicle Profile Photo",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary
-                            )
-                            Text(
-                                text = if (settings.vehiclePhotoUri != null) "Custom photo uploaded" else "Using stylized 3D card fallback",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextSecondary
-                            )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (vehicleThumbnail != null) {
+                                Image(
+                                    bitmap = vehicleThumbnail!!,
+                                    contentDescription = "Car Photo",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(54.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .border(1.5.dp, NexonCyanPrimary, RoundedCornerShape(10.dp))
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Vehicle Profile Photo",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = if (settings.vehiclePhotoUri != null) "Custom photo uploaded ✓" else "Using stylized 3D card fallback",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (settings.vehiclePhotoUri != null) NexonEmeraldAccent else TextSecondary
+                                )
+                            }
                         }
 
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
                             if (settings.vehiclePhotoUri != null) {
                                 OutlinedButton(
                                     onClick = { viewModel.removeVehiclePhoto(context) },
                                     colors = ButtonDefaults.outlinedButtonColors(contentColor = NexonRedAccent),
-                                    border = BorderStroke(1.dp, NexonRedAccent.copy(alpha = 0.5f))
+                                    border = BorderStroke(1.dp, NexonRedAccent.copy(alpha = 0.5f)),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.rememberPressScale()
                                 ) {
                                     Text("Remove")
                                 }
+                                Spacer(modifier = Modifier.width(8.dp))
                             }
                             Button(
                                 onClick = {
@@ -275,7 +347,9 @@ fun SettingsScreen(
                                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                                     )
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = NexonCyanPrimary)
+                                colors = ButtonDefaults.buttonColors(containerColor = NexonCyanPrimary),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.rememberPressScale()
                             ) {
                                 Text(
                                     text = if (settings.vehiclePhotoUri != null) "Change Photo" else "Upload Photo",
@@ -288,14 +362,134 @@ fun SettingsScreen(
                 }
             }
 
-            // 3. Weather & Environmental Integration (V2)
-            SettingsSectionHeader(title = "Weather & Environment (V2)")
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                border = BorderStroke(1.dp, DarkBorder),
-                shape = RoundedCornerShape(16.dp)
-            ) {
+            // 3. Voice Assistant & Driving Safety
+            DriveMateSectionHeader(title = "Voice Assistant & Driving Safety")
+            DriveMateCard(containerColor = DarkSurface) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Voice Assistant",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Enable hands-free voice commands and queries",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                        }
+                        Switch(
+                            checked = settings.voiceAssistantEnabled,
+                            onCheckedChange = viewModel::updateVoiceAssistantEnabled,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = NexonCyanPrimary,
+                                checkedTrackColor = NexonCyanPrimary.copy(alpha = 0.3f)
+                            )
+                        )
+                    }
+
+                    HorizontalDivider(color = DarkBorder)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Hey DriveMate Wake Word",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Say \"Hey DriveMate\" to activate assistant while driving",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                        }
+                        Switch(
+                            checked = settings.heyDriveMateEnabled,
+                            onCheckedChange = viewModel::updateHeyDriveMateEnabled,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = NexonCyanPrimary,
+                                checkedTrackColor = NexonCyanPrimary.copy(alpha = 0.3f)
+                            )
+                        )
+                    }
+
+                    HorizontalDivider(color = DarkBorder)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Driver Fatigue Alert",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Announce rest reminder after 2 hours of continuous moving driving",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                        }
+                        Switch(
+                            checked = settings.driverFatigueAlertEnabled,
+                            onCheckedChange = viewModel::updateDriverFatigueAlert,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = NexonCyanPrimary,
+                                checkedTrackColor = NexonCyanPrimary.copy(alpha = 0.3f)
+                            )
+                        )
+                    }
+
+                    HorizontalDivider(color = DarkBorder)
+
+                    Column {
+                        Text(
+                            text = "Preferred Music Player for Voice",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "Target app when saying 'Play [song]'",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextSecondary
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("Spotify", "YouTube Music").forEach { app ->
+                                val selected = settings.preferredMusicApp.equals(app, ignoreCase = true)
+                                FilterChip(
+                                    selected = selected,
+                                    onClick = { viewModel.updatePreferredMusicApp(app) },
+                                    label = { Text(app) },
+                                    modifier = Modifier.rememberPressScale()
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. Weather & Environmental Integration
+            DriveMateSectionHeader(title = "Weather & Environment")
+            DriveMateCard(containerColor = DarkSurface) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -377,7 +571,7 @@ fun SettingsScreen(
                         },
                         label = { Text(if (settings.autoDetectLocation) "Fallback City Name (e.g. Pune)" else "City Name (e.g. Pune)") },
                         supportingText = {
-                            Text(if (settings.autoDetectLocation) "Used if location is unavailable or denied" else "Fixed custom city")
+                            Text(if (settings.autoDetectLocation) "Used if GPS location is unavailable or denied" else "Fixed custom city")
                         },
                         singleLine = true,
                         colors = outlinedTextFieldColors(),
@@ -386,14 +580,9 @@ fun SettingsScreen(
                 }
             }
 
-            // 4. Vehicle Care & Service (V2)
-            SettingsSectionHeader(title = "Vehicle Care & Maintenance (V2)")
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                border = BorderStroke(1.dp, DarkBorder),
-                shape = RoundedCornerShape(16.dp)
-            ) {
+            // 5. Vehicle Care & Maintenance
+            DriveMateSectionHeader(title = "Vehicle Care & Maintenance")
+            DriveMateCard(containerColor = DarkSurface) {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -448,14 +637,9 @@ fun SettingsScreen(
                 }
             }
 
-            // 5. Favorite Destinations (V2)
-            SettingsSectionHeader(title = "Favorite Destinations (V2)")
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                border = BorderStroke(1.dp, DarkBorder),
-                shape = RoundedCornerShape(16.dp)
-            ) {
+            // 6. Favorite Destinations & Recents
+            DriveMateSectionHeader(title = "Favorite Destinations & History")
+            DriveMateCard(containerColor = DarkSurface) {
                 Column(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -488,7 +672,9 @@ fun SettingsScreen(
 
                     OutlinedButton(
                         onClick = { viewModel.clearRecentDestinations() },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .rememberPressScale(),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = NexonAmberAccent),
                         border = BorderStroke(1.dp, NexonAmberAccent.copy(alpha = 0.5f)),
                         shape = RoundedCornerShape(10.dp)
@@ -504,131 +690,9 @@ fun SettingsScreen(
                 }
             }
 
-            // Smart Assistant & Safety
-            SettingsSectionHeader(title = "Voice Assistant & Driving Safety")
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                border = BorderStroke(1.dp, DarkBorder),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Voice Assistant",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary
-                            )
-                            Text(
-                                text = "Enable hands-free voice commands and queries",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextSecondary
-                            )
-                        }
-                        Switch(
-                            checked = settings.voiceAssistantEnabled,
-                            onCheckedChange = viewModel::updateVoiceAssistantEnabled
-                        )
-                    }
-
-                    HorizontalDivider(color = DarkBorder)
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Hey DriveMate Wake Word",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary
-                            )
-                            Text(
-                                text = "Say \"Hey DriveMate\" to activate assistant while driving",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextSecondary
-                            )
-                        }
-                        Switch(
-                            checked = settings.heyDriveMateEnabled,
-                            onCheckedChange = viewModel::updateHeyDriveMateEnabled
-                        )
-                    }
-
-                    HorizontalDivider(color = DarkBorder)
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Driver Fatigue Alert",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary
-                            )
-                            Text(
-                                text = "Announce rest reminder after 2 hours of continuous driving",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextSecondary
-                            )
-                        }
-                        Switch(
-                            checked = settings.driverFatigueAlertEnabled,
-                            onCheckedChange = viewModel::updateDriverFatigueAlert
-                        )
-                    }
-
-                    HorizontalDivider(color = DarkBorder)
-
-                    Column {
-                        Text(
-                            text = "Preferred Music Player for Voice",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary
-                        )
-                        Text(
-                            text = "Target app when saying 'Play [song]'",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("Spotify", "YouTube Music").forEach { app ->
-                                val selected = settings.preferredMusicApp.equals(app, ignoreCase = true)
-                                FilterChip(
-                                    selected = selected,
-                                    onClick = { viewModel.updatePreferredMusicApp(app) },
-                                    label = { Text(app) }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 6. Greeting Section
-            SettingsSectionHeader(title = "Welcome Greeting Experience")
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                border = BorderStroke(1.dp, DarkBorder),
-                shape = RoundedCornerShape(16.dp)
-            ) {
+            // 7. Welcome Greeting Experience
+            DriveMateSectionHeader(title = "Welcome Greeting Experience")
+            DriveMateCard(containerColor = DarkSurface) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -727,7 +791,6 @@ fun SettingsScreen(
                                 maxLines = 4
                             )
 
-                            // Placeholder token chips
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = "Tap tokens to insert:",
@@ -762,7 +825,6 @@ fun SettingsScreen(
                                 }
                             }
 
-                            // Validation message
                             if (templateValidation is TemplateValidationResult.Invalid) {
                                 val invalid = templateValidation as TemplateValidationResult.Invalid
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -786,16 +848,10 @@ fun SettingsScreen(
                 }
             }
 
-            // 7. Voice & Speech Controls
-            SettingsSectionHeader(title = "Voice & Speech Engine")
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                border = BorderStroke(1.dp, DarkBorder),
-                shape = RoundedCornerShape(16.dp)
-            ) {
+            // 8. Speech Rate & Pitch Controls
+            DriveMateSectionHeader(title = "Voice & Speech Engine Tuning")
+            DriveMateCard(containerColor = DarkSurface) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    // Speech Rate Slider
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -826,7 +882,6 @@ fun SettingsScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Pitch Slider
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -857,14 +912,9 @@ fun SettingsScreen(
                 }
             }
 
-            // 8. Testing & Verification
-            SettingsSectionHeader(title = "Test & Preview")
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                border = BorderStroke(1.dp, DarkBorder),
-                shape = RoundedCornerShape(16.dp)
-            ) {
+            // 9. Audio Preview & Testing
+            DriveMateSectionHeader(title = "Preview & Test Greeting")
+            DriveMateCard(containerColor = DarkSurface) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         text = "Listen to your configured greeting directly through the phone speakers before driving.",
@@ -880,7 +930,9 @@ fun SettingsScreen(
                     ) {
                         Button(
                             onClick = viewModel::previewGreeting,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .rememberPressScale(),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = NexonCyanPrimary,
                                 contentColor = Color.Black
@@ -912,7 +964,8 @@ fun SettingsScreen(
                                 onClick = viewModel::stopSpeaking,
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = NexonAmberAccent),
                                 border = BorderStroke(1.dp, NexonAmberAccent),
-                                shape = RoundedCornerShape(10.dp)
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.rememberPressScale()
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Stop,
@@ -927,14 +980,9 @@ fun SettingsScreen(
                 }
             }
 
-            // 9. Platform Limitations & Android Auto Compatibility
-            SettingsSectionHeader(title = "Android Auto & Platform Safety")
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                border = BorderStroke(1.dp, NexonCyanPrimary.copy(alpha = 0.25f)),
-                shape = RoundedCornerShape(16.dp)
-            ) {
+            // 10. Platform Safety & Android Auto Guidelines
+            DriveMateSectionHeader(title = "Platform Safety & Guidelines")
+            DriveMateCard(containerColor = DarkSurface) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -955,9 +1003,9 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
-                        text = "• Official API: DriveMate integrates with androidx.car.app.connection.CarConnection to detect Android Auto projection (wired and wireless).\n\n" +
-                                "• Audio Focus: Audio is routed cleanly through car speakers using Android Audio Focus (Assistance Navigation stream with transient ducking), so in-car media smoothly ducks.\n\n" +
-                                "• Safety Guidelines: Android Auto strictly restricts unprompted background audio unless the app is in the foreground or executing an active driving session. DriveMate adheres 100% to Google safety standards without unsupported hacks or accessibility workarounds.",
+                        text = "• Official API: DriveMate integrates with androidx.car.app.connection.CarConnection to detect Android Auto projection.\n\n" +
+                                "• Audio Focus: Audio is routed cleanly through car speakers using Android Audio Focus (Assistance Navigation stream with transient ducking).\n\n" +
+                                "• Driver Safety: Android Auto screens adhere strictly to Google Driver Distraction Guidelines with driver-safe templates only.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextSecondary,
                         lineHeight = 20.sp
@@ -965,34 +1013,21 @@ fun SettingsScreen(
                 }
             }
 
-            // 10. About & Reset
-            SettingsSectionHeader(title = "About DriveMate")
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = DarkSurface),
-                border = BorderStroke(1.dp, DarkBorder),
-                shape = RoundedCornerShape(16.dp)
-            ) {
+            // 11. About & Diagnostics
+            DriveMateSectionHeader(title = "About DriveMate")
+            DriveMateCard(containerColor = DarkSurface) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "DriveMate v2.0.0",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
-                            Text(
-                                text = "Personal Driving Companion for Tata Nexon Creative+ S",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TextSecondary
-                            )
-                        }
-                    }
+                    Text(
+                        text = "DriveMate v3.0.0",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = "Personal Driving Companion for Tata Nexon Creative+ S",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextSecondary
+                    )
 
                     Spacer(modifier = Modifier.height(10.dp))
 
@@ -1006,7 +1041,9 @@ fun SettingsScreen(
 
                     OutlinedButton(
                         onClick = viewModel::resetToDefaults,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .rememberPressScale(),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = NexonRedAccent),
                         border = BorderStroke(1.dp, NexonRedAccent.copy(alpha = 0.5f)),
                         shape = RoundedCornerShape(10.dp)
@@ -1022,24 +1059,13 @@ fun SettingsScreen(
                 }
             }
 
-            // About Developer & Creator
-            SettingsSectionHeader(title = "About DriveMate & Developer")
+            // 12. Verified Creator Profile
+            DriveMateSectionHeader(title = "About Developer & Creator")
             CreatorCard()
 
             Spacer(modifier = Modifier.height(30.dp))
         }
     }
-}
-
-@Composable
-private fun SettingsSectionHeader(title: String) {
-    Text(
-        text = title.uppercase(),
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.Bold,
-        color = NexonCyanPrimary,
-        modifier = Modifier.padding(start = 4.dp, top = 8.dp)
-    )
 }
 
 @Composable

@@ -1,6 +1,7 @@
 package com.shatrughna.drivemate.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -25,12 +26,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LocalGasStation
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Navigation
+import androidx.compose.material.icons.filled.LocalParking
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.Button
@@ -43,11 +52,16 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -57,15 +71,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.LocalGasStation
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import com.shatrughna.drivemate.car.CarConnectionState
 import com.shatrughna.drivemate.data.model.Destination
 import com.shatrughna.drivemate.data.model.DestinationCategory
@@ -76,6 +81,7 @@ import com.shatrughna.drivemate.data.model.WeatherInfo
 import com.shatrughna.drivemate.ui.theme.CardGradientEnd
 import com.shatrughna.drivemate.ui.theme.CardGradientStart
 import com.shatrughna.drivemate.ui.theme.DarkBorder
+import com.shatrughna.drivemate.ui.theme.DarkSurface
 import com.shatrughna.drivemate.ui.theme.DarkSurfaceVariant
 import com.shatrughna.drivemate.ui.theme.NexonAmberAccent
 import com.shatrughna.drivemate.ui.theme.NexonCyanGlow
@@ -85,86 +91,285 @@ import com.shatrughna.drivemate.ui.theme.TextMuted
 import com.shatrughna.drivemate.ui.theme.TextPrimary
 import com.shatrughna.drivemate.ui.theme.TextSecondary
 
+/**
+ * 2x2 Automotive Command Center Quick Actions Grid.
+ *
+ * Driver-centric layout:
+ * 1. 🎙️ Ask DriveMate (Voice)
+ * 2. 📍 Navigate (Dynamic Search)
+ * 3. 🚗 Trip Tracking (Today's metrics)
+ * 4. 🌤️ Weather (Live climate)
+ */
+@Composable
+fun AutomotiveQuickActionsGrid(
+    weather: WeatherInfo,
+    tripStats: TripStats,
+    onVoiceActionClick: () -> Unit,
+    onNavigateActionClick: () -> Unit,
+    onTripStatusClick: () -> Unit,
+    onWeatherActionClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // 1. Voice Assistant Action
+            DriveMateCard(
+                modifier = Modifier.weight(1f),
+                onClick = onVoiceActionClick,
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, NexonCyanPrimary.copy(alpha = 0.4f)),
+                containerColor = DarkSurfaceVariant
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(NexonCyanGlow),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Mic,
+                            contentDescription = "Voice Assistant",
+                            tint = NexonCyanPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "Ask DriveMate",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "Voice Assistant",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = NexonCyanPrimary,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+
+            // 2. Navigate Action
+            DriveMateCard(
+                modifier = Modifier.weight(1f),
+                onClick = onNavigateActionClick,
+                shape = RoundedCornerShape(16.dp),
+                containerColor = DarkSurfaceVariant
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1E293B)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Navigation,
+                            contentDescription = "Navigate",
+                            tint = NexonCyanPrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "Navigate",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "Search & Map",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // 3. Trip Status Action
+            DriveMateCard(
+                modifier = Modifier.weight(1f),
+                onClick = onTripStatusClick,
+                shape = RoundedCornerShape(16.dp),
+                containerColor = DarkSurfaceVariant
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(NexonEmeraldAccent.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DirectionsCar,
+                            contentDescription = "Trip Status",
+                            tint = NexonEmeraldAccent,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "Trip Status",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "${tripStats.formattedTodayDistance} today",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+
+            // 4. Weather Action
+            DriveMateCard(
+                modifier = Modifier.weight(1f),
+                onClick = onWeatherActionClick,
+                shape = RoundedCornerShape(16.dp),
+                containerColor = DarkSurfaceVariant
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(NexonAmberAccent.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Cloud,
+                            contentDescription = "Weather",
+                            tint = NexonAmberAccent,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = if (weather.isAvailable) weather.displayTemperature else "Weather",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = if (weather.isAvailable) weather.conditionText else "Tap to refresh",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary,
+                            fontSize = 11.sp,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun VehicleHeaderCard(
     settings: DriveMateSettings,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    DriveMateCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, DarkBorder)
+        useGradient = true
     ) {
-        Box(
+        Row(
             modifier = Modifier
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(CardGradientStart, CardGradientEnd)
-                    )
-                )
-                .padding(20.dp)
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(NexonCyanGlow)
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = settings.vehicleBrand.uppercase(),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = NexonCyanPrimary,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(NexonCyanGlow)
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
                         Text(
-                            text = "Driver: ${settings.driverName}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary
+                            text = settings.vehicleBrand.uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = NexonCyanPrimary,
+                            fontWeight = FontWeight.Bold
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = settings.vehicleModel,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-
-                    Text(
-                        text = settings.vehicleVariant,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = NexonCyanPrimary,
-                        fontWeight = FontWeight.Medium
+                        text = "Driver: ${settings.driverName}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary
                     )
                 }
 
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(DarkSurfaceVariant)
-                        .border(1.dp, NexonCyanPrimary.copy(alpha = 0.3f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.DirectionsCar,
-                        contentDescription = "Car Icon",
-                        tint = NexonCyanPrimary,
-                        modifier = Modifier.size(36.dp)
-                    )
-                }
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = settings.vehicleModel,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+
+                Text(
+                    text = settings.vehicleVariant,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = NexonCyanPrimary,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
+                    .background(DarkSurfaceVariant)
+                    .border(1.dp, NexonCyanPrimary.copy(alpha = 0.3f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.DirectionsCar,
+                    contentDescription = "Car Icon",
+                    tint = NexonCyanPrimary,
+                    modifier = Modifier.size(36.dp)
+                )
             }
         }
     }
@@ -176,11 +381,9 @@ fun WeatherSummaryCard(
     onRefreshWeather: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    DriveMateCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, DarkBorder)
+        containerColor = DarkSurface
     ) {
         Row(
             modifier = Modifier
@@ -257,17 +460,16 @@ fun ActiveTripTickerCard(
         initialValue = 0.3f,
         targetValue = 1.0f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1000),
+            animation = tween(1000, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulseAlpha"
     )
 
-    Card(
+    DriveMateCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
-        border = BorderStroke(1.dp, NexonEmeraldAccent.copy(alpha = 0.5f))
+        border = BorderStroke(1.dp, NexonEmeraldAccent.copy(alpha = 0.5f)),
+        containerColor = DarkSurfaceVariant
     ) {
         Row(
             modifier = Modifier
@@ -328,11 +530,9 @@ fun DynamicDestinationSearchCard(
 ) {
     var searchQuery by remember { mutableStateOf("") }
 
-    Card(
+    DriveMateCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, DarkBorder)
+        containerColor = DarkSurface
     ) {
         Column(
             modifier = Modifier
@@ -349,7 +549,8 @@ fun DynamicDestinationSearchCard(
                     text = "DESTINATIONS & NAVIGATION",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    color = NexonCyanPrimary
+                    color = NexonCyanPrimary,
+                    letterSpacing = 1.1.sp
                 )
                 Text(
                     text = "Google Maps / AA",
@@ -396,7 +597,8 @@ fun DynamicDestinationSearchCard(
                     focusedBorderColor = NexonCyanPrimary,
                     unfocusedBorderColor = DarkBorder,
                     focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary
+                    unfocusedTextColor = TextPrimary,
+                    cursorColor = NexonCyanPrimary
                 )
             )
 
@@ -434,7 +636,8 @@ fun DynamicDestinationSearchCard(
                 listOf(
                     "Petrol Pump" to Icons.Default.LocalGasStation,
                     "Tata Service" to Icons.Default.Build,
-                    "Airport" to Icons.Default.Navigation
+                    "Airport" to Icons.Default.Navigation,
+                    "Parking" to Icons.Default.LocalParking
                 ).forEach { (label, icon) ->
                     Box(
                         modifier = Modifier
@@ -451,14 +654,14 @@ fun DynamicDestinationSearchCard(
                                 imageVector = icon,
                                 contentDescription = null,
                                 tint = NexonCyanPrimary,
-                                modifier = Modifier.size(14.dp)
+                                modifier = Modifier.size(13.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = label,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = TextPrimary,
-                                fontSize = 11.sp,
+                                fontSize = 10.sp,
                                 maxLines = 1
                             )
                         }
@@ -482,13 +685,12 @@ fun DynamicDestinationSearchCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     suggestedDestinations.take(2).forEach { dest ->
-                        Card(
+                        DriveMateCard(
                             modifier = Modifier
                                 .weight(1f)
                                 .clickable { onSelectDestination(dest) },
                             shape = RoundedCornerShape(10.dp),
-                            colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant),
-                            border = BorderStroke(0.8.dp, DarkBorder)
+                            containerColor = DarkSurfaceVariant
                         ) {
                             Row(
                                 modifier = Modifier
@@ -509,6 +711,7 @@ fun DynamicDestinationSearchCard(
                                             DestinationCategory.OFFICE -> Icons.Default.Work
                                             DestinationCategory.FUEL -> Icons.Default.LocalGasStation
                                             DestinationCategory.SERVICE_CENTER -> Icons.Default.Build
+                                            DestinationCategory.FOOD -> Icons.Default.Restaurant
                                             else -> Icons.Default.Navigation
                                         },
                                         contentDescription = null,
@@ -639,13 +842,11 @@ fun SmartDestinationRow(
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             destinations.take(2).forEach { dest ->
-                Card(
+                DriveMateCard(
                     modifier = Modifier
                         .weight(1f)
                         .clickable { onSelectDestination(dest) },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = BorderStroke(1.dp, DarkBorder)
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Row(
                         modifier = Modifier
@@ -700,13 +901,11 @@ fun VehicleCareSummaryCard(
     careInfo: VehicleCareInfo,
     modifier: Modifier = Modifier
 ) {
-    val progress = ((careInfo.currentOdometerKm % 15000) / 15000.0).toFloat()
+    val progress = ((careInfo.currentOdometerKm % 15000) / 15000.0).toFloat().coerceIn(0f, 1f)
 
-    Card(
+    DriveMateCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, DarkBorder)
+        containerColor = DarkSurface
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -731,7 +930,7 @@ fun VehicleCareSummaryCard(
                 }
 
                 Text(
-                    text = "${careInfo.currentOdometerKm} km",
+                    text = String.format("%,.1f km", careInfo.currentOdometerKm),
                     style = MaterialTheme.typography.labelLarge,
                     color = NexonCyanPrimary,
                     fontWeight = FontWeight.Bold
@@ -769,25 +968,11 @@ fun ConnectionStatusCard(
     modifier: Modifier = Modifier
 ) {
     val isConnected = connectionState.isConnected
-    val statusColor = if (isConnected) NexonEmeraldAccent else TextMuted
     val statusText = if (isConnected) "Connected" else "Disconnected"
 
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val alphaAnim by infiniteTransition.animateFloat(
-        initialValue = 0.4f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseAlpha"
-    )
-
-    Card(
+    DriveMateCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, DarkBorder)
+        containerColor = DarkSurface
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(
@@ -802,42 +987,18 @@ fun ConnectionStatusCard(
                         color = TextSecondary
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(statusColor)
-                                .then(
-                                    if (isConnected) Modifier.alpha(alphaAnim) else Modifier
-                                )
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = statusText,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (isConnected) TextPrimary else TextMuted
-                        )
-                    }
-                }
-
-                // Medium badge
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(
-                            if (isConnected) NexonCyanGlow else DarkSurfaceVariant
-                        )
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
                     Text(
-                        text = connectionState.connectionType.displayName,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (isConnected) NexonCyanPrimary else TextMuted,
-                        fontWeight = FontWeight.SemiBold
+                        text = statusText,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (isConnected) TextPrimary else TextMuted
                     )
                 }
+
+                DriveMateStatusBadge(
+                    text = connectionState.connectionType.displayName,
+                    isActive = isConnected
+                )
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -850,7 +1011,7 @@ fun ConnectionStatusCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Quick simulation toggle for seamless testing
+            // Simulation switch
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -896,11 +1057,9 @@ fun GreetingStatusCard(
     onStopGreeting: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    DriveMateCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, DarkBorder)
+        containerColor = DarkSurface
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(
@@ -1031,11 +1190,9 @@ fun DailyDrivingStatsCard(
     tripStats: TripStats,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    DriveMateCard(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, DarkBorder)
+        containerColor = DarkSurface
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(
@@ -1062,31 +1219,25 @@ fun DailyDrivingStatsCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                StatItem(label = "Trips", value = "${tripStats.todayTripsCount}")
+                DriveMateMetric(
+                    value = "${tripStats.todayTripsCount}",
+                    label = "Trips Completed",
+                    accentColor = NexonCyanPrimary
+                )
                 StatDivider()
-                StatItem(label = "Distance", value = tripStats.formattedTodayDistance)
+                DriveMateMetric(
+                    value = tripStats.formattedTodayDistance,
+                    label = "Total Distance",
+                    accentColor = NexonEmeraldAccent
+                )
                 StatDivider()
-                StatItem(label = "Duration", value = "${tripStats.todayTotalDurationMinutes} min")
+                DriveMateMetric(
+                    value = "${tripStats.todayTotalDurationMinutes} min",
+                    label = "Driving Time",
+                    accentColor = NexonAmberAccent
+                )
             }
         }
-    }
-}
-
-@Composable
-private fun StatItem(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = NexonCyanPrimary
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = TextSecondary
-        )
     }
 }
 
@@ -1094,7 +1245,7 @@ private fun StatItem(label: String, value: String) {
 private fun StatDivider() {
     Box(
         modifier = Modifier
-            .height(32.dp)
+            .height(36.dp)
             .width(1.dp)
             .background(DarkBorder)
     )

@@ -9,8 +9,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
@@ -113,7 +117,31 @@ fun DriveMateAppNavigation(
 
     AnimatedContent(
         targetState = currentScreen,
-        transitionSpec = { fadeIn() togetherWith fadeOut() },
+        transitionSpec = {
+            if (targetState == Screen.Settings) {
+                // Navigating to Settings: smooth slide in from right + fade in
+                (slideInHorizontally(
+                    animationSpec = tween(260, easing = FastOutSlowInEasing),
+                    initialOffsetX = { fullWidth -> (fullWidth * 0.25f).toInt() }
+                ) + fadeIn(animationSpec = tween(260))).togetherWith(
+                    slideOutHorizontally(
+                        animationSpec = tween(260, easing = FastOutSlowInEasing),
+                        targetOffsetX = { fullWidth -> -(fullWidth * 0.25f).toInt() }
+                    ) + fadeOut(animationSpec = tween(260))
+                )
+            } else {
+                // Navigating back to Dashboard: smooth slide in from left + fade in
+                (slideInHorizontally(
+                    animationSpec = tween(260, easing = FastOutSlowInEasing),
+                    initialOffsetX = { fullWidth -> -(fullWidth * 0.25f).toInt() }
+                ) + fadeIn(animationSpec = tween(260))).togetherWith(
+                    slideOutHorizontally(
+                        animationSpec = tween(260, easing = FastOutSlowInEasing),
+                        targetOffsetX = { fullWidth -> (fullWidth * 0.25f).toInt() }
+                    ) + fadeOut(animationSpec = tween(260))
+                )
+            }
+        },
         label = "screen_transition"
     ) { screen ->
         when (screen) {

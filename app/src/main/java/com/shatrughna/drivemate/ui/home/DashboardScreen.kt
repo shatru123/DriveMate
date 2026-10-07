@@ -1,9 +1,11 @@
 package com.shatrughna.drivemate.ui.home
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,14 +14,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -28,48 +30,56 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.shatrughna.drivemate.ui.components.ActiveTripTickerCard
+import com.shatrughna.drivemate.ui.components.AutomotiveQuickActionsGrid
 import com.shatrughna.drivemate.ui.components.ConnectionStatusCard
 import com.shatrughna.drivemate.ui.components.CreatorCard
 import com.shatrughna.drivemate.ui.components.DailyDrivingStatsCard
 import com.shatrughna.drivemate.ui.components.DynamicDestinationSearchCard
 import com.shatrughna.drivemate.ui.components.GreetingStatusCard
-import com.shatrughna.drivemate.ui.components.SmartDestinationRow
 import com.shatrughna.drivemate.ui.components.ThreeDimensionalVehicleCard
 import com.shatrughna.drivemate.ui.components.VehicleCareSummaryCard
-import com.shatrughna.drivemate.ui.components.VehicleHeaderCard
-import com.shatrughna.drivemate.ui.components.WeatherSummaryCard
+import com.shatrughna.drivemate.ui.components.rememberPressScale
+import com.shatrughna.drivemate.ui.parking.FindMyCarCard
 import com.shatrughna.drivemate.ui.theme.DarkBackground
 import com.shatrughna.drivemate.ui.theme.NexonCyanPrimary
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.core.content.ContextCompat
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import com.shatrughna.drivemate.ui.theme.NexonEmeraldAccent
 import com.shatrughna.drivemate.ui.theme.TextMuted
 import com.shatrughna.drivemate.ui.theme.TextPrimary
 import com.shatrughna.drivemate.ui.theme.TextSecondary
-import com.shatrughna.drivemate.ui.voice.VoiceAssistantSheet
 import com.shatrughna.drivemate.ui.trip.TripReportCard
-import com.shatrughna.drivemate.ui.parking.FindMyCarCard
+import com.shatrughna.drivemate.ui.voice.VoiceAssistantSheet
 
+/**
+ * Automotive Command Center Phone Dashboard.
+ *
+ * Visual Hierarchy:
+ * 1. Top Bar & Driver Greeting
+ * 2. Active Drive Ticker (when in session)
+ * 3. Hero 3D Vehicle Card (Tata Nexon Creative+ S, HSRP plate, double odometer)
+ * 4. 2x2 Quick Actions Grid (Voice, Navigate, Trip Status, Live Weather)
+ * 5. Dynamic Destinations & Category Discovery
+ * 6. Today's Driving Live Metrics
+ * 7. Android Auto / Car Connection Card
+ * 8. Welcome Greeting Experience Card
+ * 9. Vehicle Care & Maintenance Status
+ * 10. Completed Trip Route Report (if recent)
+ * 11. Parking Location ("Find My Car")
+ * 12. Verified Creator Profile Card
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
@@ -81,7 +91,6 @@ fun DashboardScreen(
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val isSessionActive by viewModel.isSessionActive.collectAsStateWithLifecycle()
-    val hasGreetingPlayed by viewModel.hasGreetingPlayed.collectAsStateWithLifecycle()
     val isSpeaking by viewModel.isSpeaking.collectAsStateWithLifecycle()
     val currentGreetingText by viewModel.currentGreetingText.collectAsStateWithLifecycle()
     val isSimulating by viewModel.isSimulating.collectAsStateWithLifecycle()
@@ -113,6 +122,19 @@ fun DashboardScreen(
         }
     }
 
+    fun launchVoiceAssistant() {
+        showVoiceSheet = true
+        val hasMicPermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+        if (hasMicPermission) {
+            viewModel.startVoiceAssistant()
+        } else {
+            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
     LaunchedEffect(settings.autoDetectLocation) {
         if (settings.autoDetectLocation && !viewModel.hasLocationPermission()) {
             locationPermissionLauncher.launch(
@@ -129,21 +151,11 @@ fun DashboardScreen(
         containerColor = DarkBackground,
         floatingActionButton = {
             FloatingActionButton(
-                onClick = {
-                    showVoiceSheet = true
-                    val hasMicPermission = ContextCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.RECORD_AUDIO
-                    ) == PackageManager.PERMISSION_GRANTED
-                    if (hasMicPermission) {
-                        viewModel.startVoiceAssistant()
-                    } else {
-                        audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    }
-                },
-                containerColor = Color(0xFF3B82F6),
-                contentColor = Color.White,
-                shape = CircleShape
+                onClick = { launchVoiceAssistant() },
+                containerColor = NexonCyanPrimary,
+                contentColor = Color.Black,
+                shape = CircleShape,
+                modifier = Modifier.rememberPressScale()
             ) {
                 Icon(
                     imageVector = Icons.Default.Mic,
@@ -164,17 +176,21 @@ fun DashboardScreen(
                             text = "DriveMate",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
-                            color = NexonCyanPrimary
+                            color = NexonCyanPrimary,
+                            letterSpacing = (-0.5).sp
                         )
                         Text(
-                            text = "Your Personal Driving Companion",
+                            text = "Automotive Companion • ${settings.vehicleBrand} ${settings.vehicleModel}",
                             style = MaterialTheme.typography.labelSmall,
                             color = TextMuted
                         )
                     }
                 },
                 actions = {
-                    IconButton(onClick = onNavigateToSettings) {
+                    IconButton(
+                        onClick = onNavigateToSettings,
+                        modifier = Modifier.rememberPressScale()
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = "Settings",
@@ -197,15 +213,22 @@ fun DashboardScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp),
+                    .padding(vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Welcome, ${settings.driverName} 👋",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary
-                )
+                Column {
+                    Text(
+                        text = "Welcome, ${settings.driverName} 👋",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = "Ready for your drive • Tata Nexon Creative+ S",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                }
             }
 
             // Active Driving Session Banner / Ticker
@@ -213,13 +236,21 @@ fun DashboardScreen(
                 ActiveTripTickerCard(tripStats = tripStats)
             }
 
-            // 1. 3D Perspective Hero Vehicle Card
+            // 1. Hero 3D Perspective Vehicle Card
             ThreeDimensionalVehicleCard(settings = settings)
 
-            // 2. Weather card (V2)
-            WeatherSummaryCard(
+            // 2. 2x2 Quick Actions Grid
+            AutomotiveQuickActionsGrid(
                 weather = weather,
-                onRefreshWeather = {
+                tripStats = tripStats,
+                onVoiceActionClick = { launchVoiceAssistant() },
+                onNavigateActionClick = {
+                    viewModel.searchAndLaunchDestination(context, "Nearby Petrol Pump")
+                },
+                onTripStatusClick = {
+                    // Quick trigger/focus
+                },
+                onWeatherActionClick = {
                     if (settings.autoDetectLocation && !viewModel.hasLocationPermission()) {
                         locationPermissionLauncher.launch(
                             arrayOf(
@@ -233,14 +264,7 @@ fun DashboardScreen(
                 }
             )
 
-            // 3. Android Auto / Car Connection card
-            ConnectionStatusCard(
-                connectionState = connectionState,
-                isSimulating = isSimulating,
-                onToggleSimulation = viewModel::toggleSimulation
-            )
-
-            // 4. Dynamic Destination Search & Contextual Suggestions
+            // 3. Dynamic Destination Search & Discovery
             DynamicDestinationSearchCard(
                 suggestedDestinations = destinations,
                 recentDestinations = recentDestinations,
@@ -248,7 +272,17 @@ fun DashboardScreen(
                 onSelectDestination = { dest -> viewModel.launchDestination(context, dest) }
             )
 
-            // 5. Greeting card with active quote & preview
+            // 4. Today's Drive Live Tracking
+            DailyDrivingStatsCard(tripStats = tripStats)
+
+            // 5. Android Auto / Car Connection Card
+            ConnectionStatusCard(
+                connectionState = connectionState,
+                isSimulating = isSimulating,
+                onToggleSimulation = viewModel::toggleSimulation
+            )
+
+            // 6. Greeting Experience Card
             GreetingStatusCard(
                 settings = settings,
                 currentGreetingText = currentGreetingText,
@@ -257,9 +291,6 @@ fun DashboardScreen(
                 onPreviewGreeting = viewModel::previewGreeting,
                 onStopGreeting = viewModel::stopSpeaking
             )
-
-            // 6. Today's drive live tracking card (V2)
-            DailyDrivingStatsCard(tripStats = tripStats)
 
             // 7. Recent Completed Trip & Route Report
             latestTrip?.let { trip ->
@@ -274,10 +305,10 @@ fun DashboardScreen(
                 )
             }
 
-            // 9. Vehicle Care & Service status card (V2)
+            // 9. Vehicle Care & Service Status
             VehicleCareSummaryCard(careInfo = careInfo)
 
-            // 10. Creator Profile & Contact
+            // 10. Creator Profile & Contact Card
             CreatorCard()
 
             Spacer(modifier = Modifier.height(80.dp))

@@ -261,14 +261,14 @@ fun ThreeDimensionalVehicleCard(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Hero Visual: Photo or Stylized 3D Tata Nexon Graphic
+                // Hero Visual: Photo with ambient glow & vignette, or Stylized 3D Tata Nexon Graphic
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(140.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .height(150.dp)
+                        .clip(RoundedCornerShape(18.dp))
                         .background(Color(0xFF090E17))
-                        .border(1.dp, Color(0xFF1E293B), RoundedCornerShape(16.dp)),
+                        .border(1.dp, Brush.horizontalGradient(listOf(NexonCyanPrimary.copy(alpha = 0.35f), DarkBorder)), RoundedCornerShape(18.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     if (vehicleBitmap != null) {
@@ -278,6 +278,38 @@ fun ThreeDimensionalVehicleCard(
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize()
                         )
+                        // Smooth vignette overlay
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(
+                                            Color.Transparent,
+                                            Color(0x22000000),
+                                            Color(0xAA090E17)
+                                        )
+                                    )
+                                )
+                        )
+                        // Subtle photo badge
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(10.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color(0x99000000))
+                                .border(0.6.dp, NexonCyanPrimary.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "CUSTOM PHOTO",
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = NexonCyanPrimary,
+                                letterSpacing = 0.8.sp
+                            )
+                        }
                     } else {
                         StylizedNexonGraphic()
                     }
@@ -502,6 +534,23 @@ private fun StylizedNexonGraphic() {
                 close()
             }
             drawPath(roofAccent, color = Color(0xFFF1F5F9))
+
+            // Signature Projector Headlamp Beam Cone
+            val headlampBeam = Path().apply {
+                moveTo(w * 0.20f, h * 0.63f)
+                lineTo(0f, h * 0.58f)
+                lineTo(0f, h * 0.78f)
+                lineTo(w * 0.20f, h * 0.66f)
+                close()
+            }
+            drawPath(
+                path = headlampBeam,
+                brush = Brush.horizontalGradient(
+                    colors = listOf(NexonCyanPrimary.copy(alpha = 0.0f), NexonCyanPrimary.copy(alpha = 0.25f)),
+                    startX = 0f,
+                    endX = w * 0.20f
+                )
+            )
 
             // Signature LED DRL Brow (Tata Nexon signature eyebrow)
             drawLine(
