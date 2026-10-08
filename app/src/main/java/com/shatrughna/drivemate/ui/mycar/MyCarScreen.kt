@@ -56,7 +56,7 @@ import com.shatrughna.drivemate.core.insights.InsightPriority
 import com.shatrughna.drivemate.data.model.DriveMateSettings
 import com.shatrughna.drivemate.ui.components.DriveMateCard
 import com.shatrughna.drivemate.ui.components.DriveMateSectionHeader
-import com.shatrughna.drivemate.ui.components.ThreeDimensionalVehicleCard
+import com.shatrughna.drivemate.ui.components.DriveMateVehicleIdentityPanel
 import com.shatrughna.drivemate.ui.components.rememberPressScale
 import com.shatrughna.drivemate.ui.theme.DarkBackground
 import com.shatrughna.drivemate.ui.theme.DarkBorder
@@ -88,6 +88,11 @@ fun MyCarScreen(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val vehicleTitle = settings.fullVehicleName.takeUnless { it == "Connected vehicle" } ?: "My vehicle"
+    val vehicleSubtitle = settings.vehicleRegistrationNumber
+        .takeIf { it.isNotBlank() }
+        ?: "Profile not configured"
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = DarkBackground,
@@ -118,7 +123,7 @@ fun MyCarScreen(
                             color = TextPrimary
                         )
                         Text(
-                            text = "${settings.vehicleBrand} ${settings.vehicleModel} (${settings.vehicleRegistrationNumber})",
+                            text = "$vehicleTitle • $vehicleSubtitle",
                             style = MaterialTheme.typography.labelSmall,
                             color = TextMuted
                         )
@@ -137,8 +142,8 @@ fun MyCarScreen(
         ) {
             Spacer(modifier = Modifier.height(4.dp))
 
-            // 1. Hero 3D Vehicle Card
-            ThreeDimensionalVehicleCard(settings = settings)
+            // 1. Truthful vehicle identity surface
+            DriveMateVehicleIdentityPanel(settings = settings)
 
             // 2. Active AI Car Insight Banner (if present)
             if (topInsight != null) {

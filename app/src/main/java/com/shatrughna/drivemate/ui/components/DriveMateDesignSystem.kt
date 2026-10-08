@@ -9,6 +9,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -73,6 +74,28 @@ import com.shatrughna.drivemate.ui.theme.NexonRedAccent
 import com.shatrughna.drivemate.ui.theme.TextMuted
 import com.shatrughna.drivemate.ui.theme.TextPrimary
 import com.shatrughna.drivemate.ui.theme.TextSecondary
+
+/** Shared layout tokens keep cockpit surfaces aligned across phone and car UI. */
+object DriveMateSpacing {
+    val xs = 4.dp
+    val sm = 8.dp
+    val md = 12.dp
+    val lg = 16.dp
+    val xl = 24.dp
+    val xxl = 32.dp
+}
+
+object DriveMateDimensions {
+    val minTouchTarget = 48.dp
+    val cardRadius = 20.dp
+    val heroRadius = 28.dp
+}
+
+object DriveMateAnimations {
+    const val contentDurationMillis = 240
+    const val valueDurationMillis = 450
+    const val pulseDurationMillis = 1_200
+}
 
 /**
  * DriveMate Automotive Gradient Presets.
@@ -153,6 +176,12 @@ fun DriveMateCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
+            .animateContentSize(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioNoBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+            )
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -170,7 +199,10 @@ fun DriveMateCard(
         colors = CardDefaults.cardColors(
             containerColor = if (useGradient) Color.Transparent else containerColor
         ),
-        border = border
+        border = border,
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (onClick != null) 2.dp else 1.dp
+        )
     ) {
         if (useGradient) {
             Box(

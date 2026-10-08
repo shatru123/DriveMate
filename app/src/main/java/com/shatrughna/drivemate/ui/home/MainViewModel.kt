@@ -59,6 +59,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -87,7 +88,17 @@ class MainViewModel(
     private val audioCoordinator: AudioInputCoordinator? = null
 ) : ViewModel() {
 
+    /**
+     * Vehicle providers may emit faster than a phone display needs to redraw.
+     * Keep the source real-time while presenting a calm, bounded UI cadence.
+     */
     val telemetry: StateFlow<VehicleTelemetry> = vehicleTelemetryRepository?.telemetry
+        ?.sample(250L)
+        ?.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = VehicleTelemetry()
+        )
         ?: MutableStateFlow(VehicleTelemetry())
 
     val audioOwnerState: StateFlow<AudioOwnerState> = audioCoordinator?.state
