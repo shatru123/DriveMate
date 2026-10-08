@@ -58,8 +58,16 @@ class TripTrackerRouteTest {
         override fun hasLocationPermission(): Boolean = hasPermission
         override suspend fun getCurrentLocation(): DeviceLocation? {
             val lat = 18.5204 + (sampleCount * 0.0003)
+            val pointTime = 1_700_000_000_000L + (sampleCount * 5000L)
             sampleCount++
-            return DeviceLocation(lat, 73.8567, "Pune")
+            return DeviceLocation(
+                latitude = lat,
+                longitude = 73.8567,
+                cityName = "Pune",
+                accuracyMeters = 5f,
+                speedKmh = 40f,
+                timestampMillis = pointTime
+            )
         }
     }
 
@@ -160,8 +168,11 @@ class TripTrackerRouteTest {
     private lateinit var fakeTtsManager: FakeTtsManager
     private lateinit var tripTracker: TripTrackerImpl
 
+    private lateinit var testScopeJob: kotlinx.coroutines.CompletableJob
+
     @Before
     fun setUp() {
+        testScopeJob = kotlinx.coroutines.Job()
         fakeSessionManager = FakeSessionManager()
         fakePreferencesRepository = FakePreferencesRepository()
         fakeLocationProvider = FakeLocationProvider()
@@ -174,38 +185,48 @@ class TripTrackerRouteTest {
             locationProvider = fakeLocationProvider,
             tripHistoryRepository = fakeTripHistoryRepo,
             ttsManager = fakeTtsManager,
-            scope = kotlinx.coroutines.CoroutineScope(testDispatcher)
+            scope = kotlinx.coroutines.CoroutineScope(testDispatcher + testScopeJob)
         )
         tripTracker.start()
     }
 
+    @org.junit.After
+    fun tearDown() {
+        tripTracker.stop()
+        testScopeJob.cancel()
+    }
+
     @Test
     fun testActiveDriveAccumulationAndReportGeneration() = runTest(testDispatcher) {
-        // Start driving session
-        fakeSessionManager.activeFlow.value = true
-        // Simulate 21 seconds of driving (advancing time without advanceUntilIdle while loop is running)
-        advanceTimeBy(21000L)
+        try {
+            // Start driving session
+            fakeSessionManager.activeFlow.value = true
+            // Simulate 21 seconds of driving (advancing time without advanceUntilIdle while loop is running)
+            advanceTimeBy(21000L)
 
-        val activeStats = tripTracker.tripStats.value
-        assertTrue(activeStats.activeTripDurationSeconds >= 20L)
-        assertTrue(activeStats.activeTripDistanceKm > 0.1f)
+            val activeStats = tripTracker.tripStats.value
+            assertTrue(activeStats.activeTripDurationSeconds >= 20L)
+            assertTrue(activeStats.activeTripDistanceKm > 0.1f)
 
-        // Car parks / disconnects
-        fakeSessionManager.activeFlow.value = false
-        advanceUntilIdle()
+            // Car parks / disconnects
+            fakeSessionManager.activeFlow.value = false
+            advanceTimeBy(1000L)
 
-        // Verifications
-        assertEquals(1, fakeTripHistoryRepo.trips.size)
-        val report = fakeTripHistoryRepo.trips.first()
-        assertTrue(report.distanceKm > 0.1f)
-        assertNotNull(report.endLocationName)
+            // Verifications
+            assertEquals(1, fakeTripHistoryRepo.trips.size)
+            val report = fakeTripHistoryRepo.trips.first()
+            assertTrue(report.distanceKm > 0.1f)
+            assertNotNull(report.endLocationName)
 
-        // Verify parking spot saved
-        assertEquals(18.5204, fakePreferencesRepository.lastParkedLat ?: 0.0, 0.01)
-        assertEquals(73.8567, fakePreferencesRepository.lastParkedLon ?: 0.0, 0.001)
+            // Verify parking spot saved
+            assertEquals(18.5204, fakePreferencesRepository.lastParkedLat ?: 0.0, 0.01)
+            assertEquals(73.8567, fakePreferencesRepository.lastParkedLon ?: 0.0, 0.001)
 
-        // Verify post-drive TTS voice debrief spoke
-        assertEquals(1, fakeTtsManager.spokenList.size)
-        assertTrue(fakeTtsManager.spokenList.first().contains("Trip complete"))
+            // Verify media playback is protected (no unsolicited post-drive TTS broadcast)
+            assertTrue(fakeTtsManager.spokenList.isEmpty())
+        } finally {
+            tripTracker.stop()
+            testScopeJob.cancel()
+        }
     }
 }

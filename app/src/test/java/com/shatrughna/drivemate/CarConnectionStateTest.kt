@@ -44,13 +44,21 @@ class CarConnectionStateTest {
     @Test
     fun testDriveMateSettingsDefaultsAndVehicleName() {
         val defaultSettings = DriveMateSettings()
-        assertEquals("Shatrughna", defaultSettings.driverName)
-        assertEquals("TATA", defaultSettings.vehicleBrand)
-        assertEquals("Nexon", defaultSettings.vehicleModel)
-        assertEquals("Creative+ S", defaultSettings.vehicleVariant)
-        assertEquals("TATA Nexon Creative+ S", defaultSettings.fullVehicleName)
+        assertEquals("", defaultSettings.driverName)
+        assertEquals("", defaultSettings.vehicleBrand)
+        assertEquals("", defaultSettings.vehicleModel)
+        assertEquals("", defaultSettings.vehicleVariant)
+        assertEquals("Connected vehicle", defaultSettings.fullVehicleName)
         assertTrue(defaultSettings.greetingEnabled)
         assertEquals(GreetingStyle.NORMAL, defaultSettings.greetingStyle)
+
+        val configured = DriveMateSettings(
+            driverName = "Shatrughna",
+            vehicleBrand = "TATA",
+            vehicleModel = "Nexon",
+            vehicleVariant = "Creative+ S"
+        )
+        assertEquals("TATA Nexon Creative+ S", configured.fullVehicleName)
     }
 
     @Test

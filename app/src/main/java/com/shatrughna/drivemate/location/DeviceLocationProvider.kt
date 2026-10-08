@@ -136,8 +136,8 @@ class DeviceLocationProviderImpl(
         latitude = latitude,
         longitude = longitude,
         cityName = cityName,
-        accuracyMeters = if (hasAccuracy) accuracy else null,
-        speedKmh = if (hasSpeed && speed >= 0f) speed * 3.6f else null,
+        accuracyMeters = if (hasAccuracy()) accuracy else null,
+        speedKmh = if (hasSpeed() && speed >= 0f) speed * 3.6f else null,
         timestampMillis = time
     )
 

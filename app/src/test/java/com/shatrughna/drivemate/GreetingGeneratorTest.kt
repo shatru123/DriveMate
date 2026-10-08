@@ -91,7 +91,7 @@ class GreetingGeneratorTest {
             timestampEpochMillis = epochMillisForHour(19),
             zoneId = zoneId
         )
-        assertEquals("Good evening, Shatrughna. Welcome back to your Nexon. Drive safely.", greeting)
+        assertEquals("Good evening, Shatrughna. Welcome back to your Tata Nexon. Drive safely.", greeting)
     }
 
     @Test
@@ -119,7 +119,7 @@ class GreetingGeneratorTest {
             timestampEpochMillis = epochMillisForHour(10),
             zoneId = zoneId
         )
-        assertEquals("Hey Shatrughna, welcome to your Nexon.", greeting)
+        assertEquals("Hey Shatrughna, welcome to your Tata Nexon.", greeting)
     }
 
     @Test
