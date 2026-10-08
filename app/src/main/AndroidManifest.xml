@@ -90,16 +90,17 @@
         <!-- Official Android Auto Car App Service for Head Unit Dashboard -->
         <service
             android:name=".car.DriveMateCarAppService"
-            android:exported="true">
+            android:exported="true"
+            android:label="@string/app_name"
+            android:icon="@mipmap/ic_launcher">
             <intent-filter>
                 <action android:name="androidx.car.app.CarAppService" />
                 <category android:name="androidx.car.app.category.IOT" />
             </intent-filter>
+            <meta-data
+                android:name="androidx.car.app.minCarApiLevel"
+                android:value="1" />
         </service>
-
-        <meta-data
-            android:name="androidx.car.app.minCarApiLevel"
-            android:value="1" />
 
         <meta-data
             android:name="com.google.android.gms.car.application"

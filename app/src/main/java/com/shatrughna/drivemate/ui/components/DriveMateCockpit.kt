@@ -83,6 +83,7 @@ fun DriveMateCockpit(
     isSessionActive: Boolean,
     voiceState: VoiceAssistantState,
     onAssistantClick: () -> Unit,
+    onDiagnosticsClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val vehicleName = settings.fullVehicleName
@@ -149,7 +150,8 @@ fun DriveMateCockpit(
                     CockpitConnectionIndicator(
                         label = connectionLabel,
                         color = connectionColor,
-                        isActive = telemetry.speedAvailability == TelemetryAvailability.LIVE
+                        isActive = telemetry.speedAvailability == TelemetryAvailability.LIVE,
+                        onClick = onDiagnosticsClick
                     )
                 }
 
@@ -174,7 +176,10 @@ fun DriveMateCockpit(
                     TelemetryModule(
                         modifier = Modifier.weight(1f),
                         title = "FUEL",
-                        value = telemetry.fuelLevelPercent?.let { "${it.roundToInt()}%" } ?: "--",
+                        value = telemetry.fuelLevelPercent
+                            ?.takeIf { telemetry.fuelAvailability.isValueUsable() }
+                            ?.let { "${it.roundToInt()}%" }
+                            ?: "--",
                         detail = availabilityDetail(telemetry.fuelAvailability),
                         icon = Icons.Default.LocalGasStation,
                         state = telemetry.fuelAvailability
@@ -188,7 +193,10 @@ fun DriveMateCockpit(
                     TelemetryModule(
                         modifier = Modifier.weight(1f),
                         title = "RANGE",
-                        value = telemetry.rangeRemainingKm?.let { "${it.roundToInt()} km" } ?: "--",
+                        value = telemetry.rangeRemainingKm
+                            ?.takeIf { telemetry.rangeAvailability.isValueUsable() }
+                            ?.let { "${it.roundToInt()} km" }
+                            ?: "--",
                         detail = availabilityDetail(telemetry.rangeAvailability),
                         icon = Icons.Default.Navigation,
                         state = telemetry.rangeAvailability
@@ -215,13 +223,108 @@ fun DriveMateCockpit(
 }
 
 @Composable
+fun DriveMateCurrentDriveSummary(
+    tripStats: TripStats,
+    isSessionActive: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        color = DarkSurface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, DarkBorder)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "CURRENT DRIVE",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = NexonCyanPrimary,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.2.sp
+                )
+                CockpitStateLabel(
+                    text = if (isSessionActive) "RECORDING" else "READY",
+                    color = if (isSessionActive) NexonEmeraldAccent else TextMuted
+                )
+            }
+
+            if (isSessionActive) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    CurrentDriveMetric(
+                        modifier = Modifier.weight(1f),
+                        value = String.format(Locale.US, "%.1f km", tripStats.activeTripDistanceKm),
+                        label = "Distance"
+                    )
+                    CurrentDriveMetric(
+                        modifier = Modifier.weight(1f),
+                        value = tripStats.formattedActiveDuration,
+                        label = "Duration"
+                    )
+                    CurrentDriveMetric(
+                        modifier = Modifier.weight(1f),
+                        value = "${tripStats.activeMovingDurationSeconds / 60} min",
+                        label = "Moving time"
+                    )
+                }
+            } else {
+                Text(
+                    text = "No active drive",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextPrimary,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "DriveMate will show live distance and duration here when a session starts.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CurrentDriveMetric(
+    value: String,
+    label: String,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleLarge,
+            color = TextPrimary,
+            fontWeight = FontWeight.Medium
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = TextSecondary
+        )
+    }
+}
+
+@Composable
 fun DriveMateSpeedometer(
     speedKmh: Float?,
     availability: TelemetryAvailability,
     source: TelemetrySource,
     modifier: Modifier = Modifier
 ) {
-    val validSpeed = speedKmh?.takeIf { it.isFinite() && it >= 0f }
+    val validSpeed = speedKmh?.takeIf {
+        it.isFinite() && it >= 0f && availability.isValueUsable()
+    }
     val animatedSpeed by animateFloatAsState(
         targetValue = validSpeed ?: 0f,
         animationSpec = tween(DriveMateAnimations.valueDurationMillis, easing = FastOutSlowInEasing),
@@ -357,7 +460,8 @@ private fun TelemetryModule(
 private fun CockpitConnectionIndicator(
     label: String,
     color: Color,
-    isActive: Boolean
+    isActive: Boolean,
+    onClick: (() -> Unit)? = null
 ) {
     val transition = rememberInfiniteTransition(label = "connection_glow")
     val alpha by transition.animateFloat(
@@ -374,6 +478,7 @@ private fun CockpitConnectionIndicator(
             .clip(RoundedCornerShape(10.dp))
             .background(color.copy(alpha = 0.10f))
             .border(1.dp, color.copy(alpha = 0.28f), RoundedCornerShape(10.dp))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 9.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -641,6 +746,9 @@ private fun availabilityDetail(availability: TelemetryAvailability): String = wh
     TelemetryAvailability.COMING_SOON -> "Coming soon"
     TelemetryAvailability.UNAVAILABLE -> "Unavailable"
 }
+
+private fun TelemetryAvailability.isValueUsable(): Boolean =
+    this == TelemetryAvailability.LIVE || this == TelemetryAvailability.STALE
 
 private fun speedSourceLabel(availability: TelemetryAvailability, source: TelemetrySource): String = when {
     availability == TelemetryAvailability.STALE -> "Stale • ${source.displayName}"

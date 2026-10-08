@@ -88,18 +88,19 @@ class DriveMateHomeScreen(carContext: CarContext) : Screen(carContext) {
         val listBuilder = ItemList.Builder()
         val stats = app.tripTracker.tripStats.value
 
-        // 1. Voice Assistant Quick Action Item (Truthful push-to-talk, no continuous wake-word)
+        // 1. Projection and telemetry are separate states. Android Auto being
+        // connected never implies that the vehicle exposes live telemetry.
         listBuilder.addItem(
             Row.Builder()
-                .setTitle("🎙️ Ask DriveMate")
-                .addText("Push-to-talk • Tap to speak")
+                .setTitle("DriveMate")
+                .addText(connectionSummary())
                 .setOnClickListener {
-                    screenManager.push(CarVoiceAssistantScreen(carContext))
+                    screenManager.push(CarVehicleStatusScreen(carContext))
                 }
                 .build()
         )
 
-        // 2. Real Vehicle Telemetry: Speed & Authoritative Odometer
+        // 2. Real Vehicle Telemetry: speed
         val speedStr = when {
             currentTelemetry.speedKmh != null && currentTelemetry.speedAvailability == TelemetryAvailability.LIVE ->
                 "${currentTelemetry.speedKmh!!.toInt()} km/h • ${currentTelemetry.speedSource.displayName}"
@@ -107,24 +108,46 @@ class DriveMateHomeScreen(carContext: CarContext) : Screen(carContext) {
                 "${currentTelemetry.speedKmh!!.toInt()} km/h • DATA STALE"
             else -> "Speed unavailable"
         }
-        val odoStr = when {
-            currentTelemetry.isAuthoritativeOdometer && currentTelemetry.vehicleOdometerKm != null ->
-                "${String.format("%,.1f", currentTelemetry.vehicleOdometerKm)} km • LIVE VEHICLE"
-            currentTelemetry.manualOdometerKm != null ->
-                "${String.format("%,.1f", currentTelemetry.manualOdometerKm)} km • MANUAL"
-            else -> "Odometer unavailable"
-        }
         listBuilder.addItem(
             Row.Builder()
-                .setTitle(if (currentTelemetry.androidAutoConnected) "Android Auto • Connected" else "Android Auto • Disconnected")
-                .addText("$speedStr\n$odoStr")
+                .setTitle("Speed")
+                .addText(speedStr)
                 .setOnClickListener {
                     screenManager.push(CarVehicleStatusScreen(carContext))
                 }
                 .build()
         )
 
-        // 3. Search Destination (Categories)
+        // 3. Real Vehicle Telemetry: odometer with explicit source.
+        val odoStr = when {
+            currentTelemetry.isAuthoritativeOdometer && currentTelemetry.vehicleOdometerKm != null ->
+                "${String.format("%,.1f", currentTelemetry.vehicleOdometerKm)} km • Vehicle"
+            currentTelemetry.manualOdometerKm != null ->
+                "${String.format("%,.1f", currentTelemetry.manualOdometerKm)} km • Manual"
+            else -> "Odometer unavailable"
+        }
+        listBuilder.addItem(
+            Row.Builder()
+                .setTitle("Odometer")
+                .addText(odoStr)
+                .setOnClickListener {
+                    screenManager.push(CarVehicleStatusScreen(carContext))
+                }
+                .build()
+        )
+
+        // 4. Voice Assistant Quick Action Item (truthful push-to-talk, no continuous wake-word)
+        listBuilder.addItem(
+            Row.Builder()
+                .setTitle("Ask DriveMate")
+                .addText("Push-to-talk • Tap to speak")
+                .setOnClickListener {
+                    screenManager.push(CarVoiceAssistantScreen(carContext))
+                }
+                .build()
+        )
+
+        // 5. Search Destination (Categories)
         listBuilder.addItem(
             Row.Builder()
                 .setTitle("📍 Search Destination")
@@ -135,7 +158,7 @@ class DriveMateHomeScreen(carContext: CarContext) : Screen(carContext) {
                 .build()
         )
 
-        // 4. Recent Destinations
+        // 6. Recent Destinations
         listBuilder.addItem(
             Row.Builder()
                 .setTitle("🕘 Recent Destinations")
@@ -146,7 +169,7 @@ class DriveMateHomeScreen(carContext: CarContext) : Screen(carContext) {
                 .build()
         )
 
-        // 5. Trip Statistics & Maintenance
+        // 7. Trip Statistics & Maintenance
         val tripMins = stats.activeTripDurationSeconds / 60
         val hasActiveDrive = stats.activeTripDurationSeconds > 0L || stats.activeTripDistanceKm > 0.05f
         val tripDist = stats.activeTripDistanceKm.takeIf { hasActiveDrive }?.let { String.format("%.1f", it) }
@@ -164,7 +187,7 @@ class DriveMateHomeScreen(carContext: CarContext) : Screen(carContext) {
                 .build()
         )
 
-        // 6. Live Weather Row
+        // 8. Live Weather Row
         val weatherText = if (currentWeather.isAvailable) {
             "${currentWeather.displayTemperature} • ${currentWeather.conditionText} in ${currentWeather.cityName.ifBlank { "Current Location" }}"
         } else {
@@ -189,5 +212,13 @@ class DriveMateHomeScreen(carContext: CarContext) : Screen(carContext) {
             .setSingleList(listBuilder.build())
             .setHeader(header)
             .build()
+    }
+
+    private fun connectionSummary(): String = when {
+        currentTelemetry.speedAvailability == TelemetryAvailability.LIVE &&
+                currentTelemetry.vehicleTelemetryConnected -> "Vehicle data live"
+        currentTelemetry.androidAutoConnected && currentTelemetry.vehicleTelemetryConnected -> "Vehicle data limited"
+        currentTelemetry.androidAutoConnected -> "Android Auto connected • vehicle data unavailable"
+        else -> "Vehicle data unavailable"
     }
 }

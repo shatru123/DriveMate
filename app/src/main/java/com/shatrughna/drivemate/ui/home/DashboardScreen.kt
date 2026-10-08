@@ -32,7 +32,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,16 +48,10 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.shatrughna.drivemate.ui.components.CockpitActionRail
 import com.shatrughna.drivemate.ui.components.DriveMateCockpit
-import com.shatrughna.drivemate.ui.components.ConnectionStatusCard
-import com.shatrughna.drivemate.ui.components.CreatorCard
-import com.shatrughna.drivemate.ui.components.DailyDrivingStatsCard
+import com.shatrughna.drivemate.ui.components.DriveMateCurrentDriveSummary
 import com.shatrughna.drivemate.ui.components.DriveMateStatusBadge
 import com.shatrughna.drivemate.ui.components.DynamicDestinationSearchCard
-import com.shatrughna.drivemate.ui.components.GreetingStatusCard
-import com.shatrughna.drivemate.ui.components.VehicleCareSummaryCard
-import com.shatrughna.drivemate.ui.components.WeatherSummaryCard
 import com.shatrughna.drivemate.ui.components.rememberPressScale
-import com.shatrughna.drivemate.ui.parking.FindMyCarCard
 import com.shatrughna.drivemate.ui.theme.DarkBackground
 import com.shatrughna.drivemate.ui.theme.DarkSurface
 import com.shatrughna.drivemate.ui.theme.NexonEmeraldAccent
@@ -66,25 +59,18 @@ import com.shatrughna.drivemate.ui.theme.NexonCyanPrimary
 import com.shatrughna.drivemate.ui.theme.TextMuted
 import com.shatrughna.drivemate.ui.theme.TextPrimary
 import com.shatrughna.drivemate.ui.theme.TextSecondary
-import com.shatrughna.drivemate.ui.trip.TripReportCard
 import com.shatrughna.drivemate.ui.voice.VoiceAssistantSheet
 
 /**
  * Automotive Command Center Phone Dashboard.
  *
- * Visual Hierarchy:
- * 1. Top Bar & Driver Greeting
- * 2. Active Drive Ticker (when in session)
- * 3. Hero 3D Vehicle Card (profile-aware vehicle identity and odometer)
- * 4. 2x2 Quick Actions Grid (Voice, Navigate, Trip Status, Live Weather)
- * 5. Dynamic Destinations & Category Discovery
- * 6. Today's Driving Live Metrics
- * 7. Android Auto / Car Connection Card
- * 8. Welcome Greeting Experience Card
- * 9. Vehicle Care & Maintenance Status
- * 10. Completed Trip Route Report (if recent)
- * 11. Parking Location ("Find My Car")
- * 12. Verified Creator Profile Card
+ * Visual hierarchy:
+ * 1. Driver context and connection state
+ * 2. Truthful telemetry cockpit
+ * 3. Explicit assistant and driver actions
+ * 4. Navigation discovery
+ * 5. Current-drive journal summary
+ * Secondary vehicle utilities remain behind Vehicle / My Car.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,28 +91,12 @@ fun DashboardScreen(
     val telemetry by viewModel.telemetry.collectAsStateWithLifecycle()
     val connectionState by viewModel.connectionState.collectAsStateWithLifecycle()
     val isSessionActive by viewModel.isSessionActive.collectAsStateWithLifecycle()
-    val isSpeaking by viewModel.isSpeaking.collectAsStateWithLifecycle()
-    val currentGreetingText by viewModel.currentGreetingText.collectAsStateWithLifecycle()
-    val isSimulating by viewModel.isSimulating.collectAsStateWithLifecycle()
-    val weather by viewModel.weather.collectAsStateWithLifecycle()
     val tripStats by viewModel.tripStats.collectAsStateWithLifecycle()
     val destinations by viewModel.suggestedDestinations.collectAsStateWithLifecycle()
     val recentDestinations by viewModel.recentDestinations.collectAsStateWithLifecycle()
-    val careInfo by viewModel.vehicleCareInfo.collectAsStateWithLifecycle()
     val voiceState by viewModel.voiceAssistantState.collectAsStateWithLifecycle()
-    val latestTrip by viewModel.latestTrip.collectAsStateWithLifecycle()
 
     var showVoiceSheet by remember { mutableStateOf(false) }
-
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        if (granted) {
-            viewModel.refreshWeather(forceRefresh = true)
-        }
-    }
 
     val audioPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -146,17 +116,6 @@ fun DashboardScreen(
             viewModel.startVoiceAssistant()
         } else {
             audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-        }
-    }
-
-    LaunchedEffect(settings.autoDetectLocation) {
-        if (settings.autoDetectLocation && !viewModel.hasLocationPermission()) {
-            locationPermissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            )
         }
     }
 
@@ -293,7 +252,8 @@ fun DashboardScreen(
                     tripStats = tripStats,
                     isSessionActive = isSessionActive,
                     voiceState = voiceState,
-                    onAssistantClick = { launchVoiceAssistant() }
+                    onAssistantClick = { launchVoiceAssistant() },
+                    onDiagnosticsClick = onNavigateToDiagnostics
                 )
 
                 // 2. Focused driver actions
@@ -306,70 +266,19 @@ fun DashboardScreen(
                     onAssistant = { launchVoiceAssistant() }
                 )
 
-                // 3. Weather stays contextual and never blocks the cockpit.
-                WeatherSummaryCard(
-                    weather = weather,
-                    onRefreshWeather = {
-                        if (settings.autoDetectLocation && !viewModel.hasLocationPermission()) {
-                            locationPermissionLauncher.launch(
-                                arrayOf(
-                                    Manifest.permission.ACCESS_FINE_LOCATION,
-                                    Manifest.permission.ACCESS_COARSE_LOCATION
-                                )
-                            )
-                        } else {
-                            viewModel.refreshWeather(forceRefresh = true)
-                        }
-                    }
+                // 3. Navigation stays available without overwhelming the cockpit.
+                DynamicDestinationSearchCard(
+                    suggestedDestinations = destinations,
+                    recentDestinations = recentDestinations,
+                    onSearchDestination = { query -> viewModel.searchAndLaunchDestination(context, query) },
+                    onSelectDestination = { dest -> viewModel.launchDestination(context, dest) }
                 )
 
-                // 4. Dynamic Destination Search & Discovery
-                DynamicDestinationSearchCard(
-                suggestedDestinations = destinations,
-                recentDestinations = recentDestinations,
-                onSearchDestination = { query -> viewModel.searchAndLaunchDestination(context, query) },
-                onSelectDestination = { dest -> viewModel.launchDestination(context, dest) }
-            )
-
-                // 4. Today's Drive Live Tracking
-                DailyDrivingStatsCard(tripStats = tripStats)
-
-                // 5. Android Auto / Car Connection Card
-                ConnectionStatusCard(
-                connectionState = connectionState,
-                isSimulating = isSimulating,
-                onToggleSimulation = viewModel::toggleSimulation,
-                onDiagnosticsClick = onNavigateToDiagnostics
-            )
-
-                // 6. Greeting Experience Card
-                GreetingStatusCard(
-                settings = settings,
-                currentGreetingText = currentGreetingText,
-                isSpeaking = isSpeaking,
-                onToggleGreetingEnabled = viewModel::toggleGreetingEnabled,
-                onPreviewGreeting = viewModel::previewGreeting,
-                onStopGreeting = viewModel::stopSpeaking
-            )
-
-                // 7. Recent Completed Trip & Route Report
-                latestTrip?.let { trip ->
-                    TripReportCard(tripReport = trip)
-                }
-
-                // 8. Find My Car (Parking Location)
-                if (settings.hasParkedLocation) {
-                    FindMyCarCard(
-                        settings = settings,
-                        onNavigateToCar = { viewModel.navigateToParkedCar(context) }
-                    )
-                }
-
-                // 9. Vehicle Care & Service Status
-                VehicleCareSummaryCard(careInfo = careInfo)
-
-                // 10. Creator Profile & Contact Card
-                CreatorCard()
+                // 4. Current drive summary is the single live journal module on Home.
+                DriveMateCurrentDriveSummary(
+                    tripStats = tripStats,
+                    isSessionActive = isSessionActive
+                )
 
                 Spacer(modifier = Modifier.height(92.dp))
             }
