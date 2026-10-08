@@ -133,6 +133,16 @@ class VoiceAssistantManagerImpl(
 
     override fun stopListening() {
         activeRecognitionGeneration = ++recognitionGeneration
+        destroyRecognizer()
+        scope.launch {
+            audioCoordinator?.onCommandListeningFinished()
+        }
+        if (_state.value is VoiceAssistantState.Listening) {
+            _state.value = VoiceAssistantState.Idle
+        }
+    }
+
+    private fun destroyRecognizer() {
         try {
             speechRecognizer?.stopListening()
             speechRecognizer?.cancel()
@@ -140,25 +150,11 @@ class VoiceAssistantManagerImpl(
         } catch (e: Exception) {
             AppLogger.w(AppLogger.Tag.APP, "Error stopping SpeechRecognizer: ${e.message}")
         }
-        scope.launch {
-            audioCoordinator?.onCommandListeningFinished()
-        }
         speechRecognizer = null
-        if (_state.value is VoiceAssistantState.Listening) {
-            _state.value = VoiceAssistantState.Idle
-        }
     }
 
     override fun release() {
         stopListening()
-        val recognizer = speechRecognizer
-        speechRecognizer = null
-        try {
-            recognizer?.cancel()
-            recognizer?.destroy()
-        } catch (e: Exception) {
-            AppLogger.w(AppLogger.Tag.APP, "Error destroying SpeechRecognizer: ${e.message}")
-        }
         scope.launch {
             audioCoordinator?.releaseAll()
         }
@@ -196,6 +192,7 @@ class VoiceAssistantManagerImpl(
                     else -> "Speech recognition failed. Please try again."
                 }
                 AppLogger.w(AppLogger.Tag.APP, "Speech recognizer error: $errorMsg")
+                destroyRecognizer()
                 audioCoordinator?.setError(errorMsg)
                 _state.value = VoiceAssistantState.Error(errorMsg)
             }
@@ -205,6 +202,7 @@ class VoiceAssistantManagerImpl(
                 scope.launch {
                     audioCoordinator?.onCommandListeningFinished()
                 }
+                destroyRecognizer()
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val recognizedText = matches?.firstOrNull() ?: ""
                 if (recognizedText.isNotBlank()) {

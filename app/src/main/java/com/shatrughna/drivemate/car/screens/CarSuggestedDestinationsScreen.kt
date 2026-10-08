@@ -12,20 +12,26 @@ import com.shatrughna.drivemate.DriveMateApplication
 import com.shatrughna.drivemate.data.model.DriveMateSettings
 import com.shatrughna.drivemate.util.AppLogger
 
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+
 /**
  * Android Auto screen presenting contextual destination suggestions based on time of day,
  * fuel status, vehicle service interval, and saved shortcuts.
  */
 class CarSuggestedDestinationsScreen(
     carContext: CarContext,
-    private val settings: DriveMateSettings
+    private val settings: DriveMateSettings? = null
 ) : Screen(carContext) {
 
     private val app = carContext.applicationContext as DriveMateApplication
 
     override fun onGetTemplate(): Template {
         val listBuilder = ItemList.Builder()
-        val suggestions = app.destinationManager.getSuggestedDestinations(settings).take(6)
+        val effectiveSettings = settings ?: runCatching {
+            runBlocking { app.preferencesRepository.settingsFlow.first() }
+        }.getOrDefault(DriveMateSettings())
+        val suggestions = app.destinationManager.getSuggestedDestinations(effectiveSettings).take(6)
 
         if (suggestions.isEmpty()) {
             listBuilder.addItem(

@@ -48,6 +48,26 @@ class CarDestinationSearchScreen(carContext: CarContext) : Screen(carContext) {
         val listBuilder = ItemList.Builder()
 
         val query = searchQuery.trim()
+        if (query.isBlank()) {
+            listBuilder.addItem(
+                Row.Builder()
+                    .setTitle("Recent destinations")
+                    .addText("Resume a saved place")
+                    .setOnClickListener {
+                        screenManager.push(CarRecentDestinationsScreen(carContext))
+                    }
+                    .build()
+            )
+            listBuilder.addItem(
+                Row.Builder()
+                    .setTitle("Suggested destinations")
+                    .addText("Nearby places for this drive")
+                    .setOnClickListener {
+                        screenManager.push(CarSuggestedDestinationsScreen(carContext))
+                    }
+                    .build()
+            )
+        }
         if (query.isNotBlank()) {
             listBuilder.addItem(
                 Row.Builder()

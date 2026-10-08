@@ -48,7 +48,7 @@ class CarVehicleStatusScreen(carContext: CarContext) : Screen(carContext) {
             .addItem(Row.Builder().setTitle("Speed").addText(speedText()).build())
             .addItem(Row.Builder().setTitle("Odometer").addText(odometerText()).build())
             .addItem(Row.Builder().setTitle("Fuel / range").addText(fuelText()).build())
-            .addItem(Row.Builder().setTitle("TPMS").addText("Not available • Check instrument cluster").build())
+            .addItem(Row.Builder().setTitle("TPMS").addText("${telemetry.tpms.availability.label} • ${telemetry.tpms.notice}").build())
             .addItem(Row.Builder().setTitle("OBD2").addText("Not connected").build())
             .build()
         return ListTemplate.Builder()

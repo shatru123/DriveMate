@@ -1,5 +1,7 @@
 package com.shatrughna.drivemate.car.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
 import androidx.car.app.CarContext
 import androidx.car.app.Screen
 import androidx.car.app.model.Action
@@ -9,6 +11,7 @@ import androidx.car.app.model.Template
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import com.shatrughna.drivemate.DriveMateApplication
+import com.shatrughna.drivemate.car.DriveMateCarPermissions
 import com.shatrughna.drivemate.util.AppLogger
 import com.shatrughna.drivemate.voice.VoiceAssistantState
 import kotlinx.coroutines.CoroutineScope
@@ -60,7 +63,7 @@ class CarVoiceAssistantScreen(carContext: CarContext) : Screen(carContext) {
             is VoiceAssistantState.Listening -> "Listening... Speak your command now.\n\nExamples:\n• \"Play music on Spotify\"\n• \"Navigate to office\"\n• \"What's the weather?\""
             is VoiceAssistantState.Processing -> "Processing: \"${s.recognizedText}\"..."
             is VoiceAssistantState.Responding -> "Responding: \"${s.speechText}\""
-            is VoiceAssistantState.Error -> "Voice input unavailable.\nTap Speak to retry."
+            is VoiceAssistantState.Error -> s.message
             is VoiceAssistantState.Idle -> "DriveMate Voice Assistant ready.\nTap Speak to begin."
         }
 
@@ -75,10 +78,32 @@ class CarVoiceAssistantScreen(carContext: CarContext) : Screen(carContext) {
                 Action.Builder()
                     .setTitle("Speak")
                     .setOnClickListener {
-                        app.voiceAssistantManager.startListening()
+                        requestMicrophoneAndStart()
                     }
                     .build()
             )
             .build()
+    }
+
+    private fun requestMicrophoneAndStart() {
+        if (carContext.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            app.voiceAssistantManager.startListening()
+            return
+        }
+
+        DriveMateCarPermissions.request(
+            carContext = carContext,
+            permissions = listOf(Manifest.permission.RECORD_AUDIO)
+        ) { approvedPermissions, rejectedPermissions ->
+            if (Manifest.permission.RECORD_AUDIO in approvedPermissions && rejectedPermissions.isEmpty()) {
+                app.voiceAssistantManager.startListening()
+            } else {
+                app.audioInputCoordinator.setError("Microphone permission denied")
+                currentState = VoiceAssistantState.Error(
+                    "Microphone permission is required. Use your phone to grant access, then try again."
+                )
+                invalidate()
+            }
+        }
     }
 }

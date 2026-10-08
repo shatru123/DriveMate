@@ -125,6 +125,7 @@ class AudioInputCoordinatorImpl(context: Context? = null) : AudioInputCoordinato
             _activeOwner.value = AudioResourceOwner.NONE
         }
         _state.value = AudioOwnerState.PROCESSING
+        releaseAudioFocusLocked()
         AppLogger.i(AppLogger.Tag.MICROPHONE, "[MIC_STOPPED] Microphone released immediately. State -> PROCESSING")
     }
 
@@ -161,6 +162,7 @@ class AudioInputCoordinatorImpl(context: Context? = null) : AudioInputCoordinato
     override fun setProcessing() {
         if (_activeOwner.value != AudioResourceOwner.TTS_PLAYBACK) {
             _activeOwner.value = AudioResourceOwner.NONE
+            releaseAudioFocusLocked()
         }
         _state.value = AudioOwnerState.PROCESSING
         AppLogger.d(AppLogger.Tag.AUDIO, "AudioCoordinator: State -> PROCESSING")
@@ -245,6 +247,7 @@ class AudioInputCoordinatorImpl(context: Context? = null) : AudioInputCoordinato
             _activeOwner.value == AudioResourceOwner.MICROPHONE_RECORDING
         ) {
             _activeOwner.value = AudioResourceOwner.NONE
+            releaseAudioFocusLocked()
         }
         _state.value = AudioOwnerState.PROCESSING
         AppLogger.d(AppLogger.Tag.AUDIO, "AudioCoordinator: Command listening finished. State -> PROCESSING")

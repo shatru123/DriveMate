@@ -1,6 +1,7 @@
 package com.shatrughna.drivemate.core.telemetry
 
 import androidx.car.app.CarContext
+import com.shatrughna.drivemate.car.DriveMateCarPermissions
 import com.shatrughna.drivemate.util.AppLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +52,20 @@ class VehicleDataCoordinator(
             provider.telemetry.collectLatest { mergeProviderData(it, TelemetrySource.ANDROID_AUTO_CAR_HARDWARE) }
         }
         _telemetry.update { it.copy(androidAutoConnected = true) }
+
+        DriveMateCarPermissions.request(
+            carContext = carContext,
+            permissions = DriveMateCarPermissions.vehicleDataPermissions
+        ) { _, rejectedPermissions ->
+            if (carHardwareProvider !== provider) return@request
+            if (rejectedPermissions.isNotEmpty()) {
+                AppLogger.w(
+                    AppLogger.TAG_CAR_HARDWARE,
+                    "Vehicle permissions rejected: ${rejectedPermissions.joinToString()}"
+                )
+            }
+            provider.start()
+        }
     }
 
     @Synchronized
@@ -91,21 +106,34 @@ class VehicleDataCoordinator(
         _telemetry.update { it.copy(tripGpsDistanceKm = gpsKm.coerceAtLeast(0.0)) }
     }
 
-    /** GPS is a fallback estimate only and never overwrites a live vehicle/OBD reading. */
+    /** GPS is a fallback estimate, selected by availability/freshness/source arbitration. */
     fun updateGpsSpeed(speedKmh: Float?) {
         _telemetry.update { current ->
-            if (current.speedAvailability == TelemetryAvailability.LIVE && current.speedSource != TelemetrySource.PHONE_GPS) {
-                current
+            val now = System.currentTimeMillis()
+            val validSpeed = speedKmh?.takeIf { it.isFinite() && it >= 0f }
+            val incomingAvailability = if (validSpeed != null) {
+                TelemetryAvailability.LIVE
             } else {
-                val now = System.currentTimeMillis()
-                current.copy(
-                    speedKmh = speedKmh?.takeIf { it.isFinite() && it >= 0f },
-                    speedSource = if (speedKmh != null) TelemetrySource.PHONE_GPS else TelemetrySource.NONE,
-                    speedAvailability = if (speedKmh != null) TelemetryAvailability.LIVE else TelemetryAvailability.UNAVAILABLE,
-                    speedTimestampMillis = speedKmh?.let { now },
-                    lastUpdatedTimestamp = now
-                )
+                TelemetryAvailability.UNAVAILABLE
             }
+            val useGps = TelemetryArbitration.shouldPreferIncoming(
+                incomingAvailability = incomingAvailability,
+                incomingTimestampMillis = validSpeed?.let { now },
+                incomingSource = TelemetrySource.PHONE_GPS,
+                incomingHasValue = validSpeed != null,
+                currentAvailability = current.speedAvailability,
+                currentTimestampMillis = current.speedTimestampMillis,
+                currentSource = current.speedSource,
+                currentHasValue = current.speedKmh != null,
+                nowMillis = now
+            )
+            if (!useGps) current else current.copy(
+                speedKmh = validSpeed,
+                speedSource = if (validSpeed != null) TelemetrySource.PHONE_GPS else TelemetrySource.NONE,
+                speedAvailability = incomingAvailability,
+                speedTimestampMillis = validSpeed?.let { now },
+                lastUpdatedTimestamp = now
+            )
         }
     }
 
@@ -128,38 +156,50 @@ class VehicleDataCoordinator(
     private fun mergeProviderData(data: VehicleTelemetry, source: TelemetrySource) {
         _telemetry.update { current ->
             val now = System.currentTimeMillis()
-            val speedUnavailable = current.speedAvailability in setOf(
-                TelemetryAvailability.UNAVAILABLE,
-                TelemetryAvailability.NOT_CONNECTED,
-                TelemetryAvailability.NOT_SUPPORTED,
-                TelemetryAvailability.NOT_AUTHORIZED,
-                TelemetryAvailability.STALE
+            val useSpeed = TelemetryArbitration.shouldPreferIncoming(
+                incomingAvailability = data.speedAvailability,
+                incomingTimestampMillis = data.speedTimestampMillis ?: data.lastUpdatedTimestamp ?: now,
+                incomingSource = source,
+                incomingHasValue = data.speedKmh != null,
+                currentAvailability = current.speedAvailability,
+                currentTimestampMillis = current.speedTimestampMillis,
+                currentSource = current.speedSource,
+                currentHasValue = current.speedKmh != null,
+                nowMillis = now
             )
-            val odometerUnavailable = current.odometerAvailability in setOf(
-                TelemetryAvailability.UNAVAILABLE,
-                TelemetryAvailability.NOT_CONNECTED,
-                TelemetryAvailability.NOT_SUPPORTED,
-                TelemetryAvailability.NOT_AUTHORIZED,
-                TelemetryAvailability.STALE
+            val useOdometer = TelemetryArbitration.shouldPreferIncoming(
+                incomingAvailability = data.odometerAvailability,
+                incomingTimestampMillis = data.odometerTimestampMillis ?: data.lastUpdatedTimestamp ?: now,
+                incomingSource = source,
+                incomingHasValue = data.vehicleOdometerKm != null,
+                currentAvailability = current.odometerAvailability,
+                currentTimestampMillis = current.odometerTimestampMillis,
+                currentSource = current.odometerSource,
+                currentHasValue = current.vehicleOdometerKm != null,
+                nowMillis = now
             )
-            val fuelUnavailable = current.fuelAvailability in setOf(
-                TelemetryAvailability.UNAVAILABLE,
-                TelemetryAvailability.NOT_CONNECTED,
-                TelemetryAvailability.NOT_SUPPORTED,
-                TelemetryAvailability.NOT_AUTHORIZED,
-                TelemetryAvailability.STALE
+            val useFuel = TelemetryArbitration.shouldPreferIncoming(
+                incomingAvailability = data.fuelAvailability,
+                incomingTimestampMillis = data.fuelTimestampMillis ?: data.lastUpdatedTimestamp ?: now,
+                incomingSource = source,
+                incomingHasValue = data.fuelLevelPercent != null,
+                currentAvailability = current.fuelAvailability,
+                currentTimestampMillis = current.fuelTimestampMillis,
+                currentSource = current.fuelSource,
+                currentHasValue = current.fuelLevelPercent != null,
+                nowMillis = now
             )
-            val rangeUnavailable = current.rangeAvailability in setOf(
-                TelemetryAvailability.UNAVAILABLE,
-                TelemetryAvailability.NOT_CONNECTED,
-                TelemetryAvailability.NOT_SUPPORTED,
-                TelemetryAvailability.NOT_AUTHORIZED,
-                TelemetryAvailability.STALE
+            val useRange = TelemetryArbitration.shouldPreferIncoming(
+                incomingAvailability = data.rangeAvailability,
+                incomingTimestampMillis = data.rangeTimestampMillis ?: data.lastUpdatedTimestamp ?: now,
+                incomingSource = source,
+                incomingHasValue = data.rangeRemainingKm != null,
+                currentAvailability = current.rangeAvailability,
+                currentTimestampMillis = current.rangeTimestampMillis,
+                currentSource = current.fuelSource,
+                currentHasValue = current.rangeRemainingKm != null,
+                nowMillis = now
             )
-            val useSpeed = data.speedKmh != null && (current.speedKmh == null || speedUnavailable || sourceRank(source) <= sourceRank(current.speedSource))
-            val useOdometer = data.vehicleOdometerKm != null && (current.vehicleOdometerKm == null || odometerUnavailable || sourceRank(source) <= sourceRank(current.odometerSource))
-            val useFuel = data.fuelLevelPercent != null && (current.fuelLevelPercent == null || fuelUnavailable || sourceRank(source) <= sourceRank(current.fuelSource))
-            val useRange = data.rangeRemainingKm != null && (current.rangeRemainingKm == null || rangeUnavailable || sourceRank(source) <= sourceRank(current.fuelSource))
             current.copy(
                 androidAutoConnected = current.androidAutoConnected || data.androidAutoConnected,
                 vehicleTelemetryConnected = current.vehicleTelemetryConnected || data.vehicleTelemetryConnected,
@@ -185,19 +225,10 @@ class VehicleDataCoordinator(
 
     private fun expireStaleValues(now: Long) {
         _telemetry.update { current ->
-            fun state(timestamp: Long?, availability: TelemetryAvailability, timeout: Long): TelemetryAvailability {
-                if (timestamp == null) return availability
-                val age = now - timestamp
-                return when {
-                    age <= timeout -> availability
-                    age <= timeout * 3 -> if (availability == TelemetryAvailability.LIVE) TelemetryAvailability.STALE else availability
-                    else -> TelemetryAvailability.UNAVAILABLE
-                }
-            }
-            val speed = state(current.speedTimestampMillis, current.speedAvailability, 2_000L)
-            val odo = state(current.odometerTimestampMillis, current.odometerAvailability, 10_000L)
-            val fuel = state(current.fuelTimestampMillis, current.fuelAvailability, 30_000L)
-            val range = state(current.rangeTimestampMillis, current.rangeAvailability, 30_000L)
+            val speed = TelemetryArbitration.expireAvailability(current.speedAvailability, current.speedTimestampMillis, now, 2_000L)
+            val odo = TelemetryArbitration.expireAvailability(current.odometerAvailability, current.odometerTimestampMillis, now, 10_000L)
+            val fuel = TelemetryArbitration.expireAvailability(current.fuelAvailability, current.fuelTimestampMillis, now, 30_000L)
+            val range = TelemetryArbitration.expireAvailability(current.rangeAvailability, current.rangeTimestampMillis, now, 30_000L)
             current.copy(
                 speedAvailability = speed,
                 odometerAvailability = odo,
@@ -213,11 +244,4 @@ class VehicleDataCoordinator(
         return "${value ?: "Unavailable"} (${source.displayName}, ${availability.label}; $age)"
     }
 
-    private fun sourceRank(source: TelemetrySource): Int = when (source) {
-        TelemetrySource.ANDROID_AUTO_CAR_HARDWARE -> 0
-        TelemetrySource.OBD2_BLE, TelemetrySource.OBD2_WIFI -> 1
-        TelemetrySource.PHONE_GPS -> 2
-        TelemetrySource.MANUAL -> 3
-        TelemetrySource.NONE -> 4
-    }
 }

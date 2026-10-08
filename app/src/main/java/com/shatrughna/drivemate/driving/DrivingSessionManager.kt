@@ -39,6 +39,8 @@ interface DrivingSessionManager {
     fun startSessionMonitoring()
     /** Starts tracking only after an explicit/user or real-motion trigger. */
     suspend fun startDrivingSession(): Boolean = false
+    /** Ends the current drive while retaining the verified car connection for a later restart. */
+    suspend fun stopDrivingSession(reason: String = "Motion stopped"): Boolean = false
     fun markGreetingPlayed(sessionId: String): Boolean
     fun resetSession()
     suspend fun onConnectionStateChanged(state: CarConnectionState)
@@ -137,13 +139,19 @@ class DrivingSessionManagerImpl(
         true
     }
 
-    private fun endSessionInternal(reason: String) {
+    override suspend fun stopDrivingSession(reason: String): Boolean = sessionMutex.withLock {
+        if (!_isSessionActive.value) return@withLock false
+        endSessionInternal(reason, clearConnection = false)
+        true
+    }
+
+    private fun endSessionInternal(reason: String, clearConnection: Boolean = true) {
         AppLogger.i(AppLogger.Tag.SESSION, "Ending driving session [${_currentSessionId.value}]: $reason")
         _isSessionActive.value = false
         _currentSessionId.value = null
         _hasGreetingPlayed.value = false
         _sessionStartTime.value = null
-        latestVerifiedConnection = null
+        if (clearConnection) latestVerifiedConnection = null
     }
 
     override fun markGreetingPlayed(sessionId: String): Boolean {

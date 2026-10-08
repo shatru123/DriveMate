@@ -12,6 +12,8 @@ import com.shatrughna.drivemate.destination.DestinationManagerImpl
 import com.shatrughna.drivemate.destination.RecentDestinationRepository
 import com.shatrughna.drivemate.destination.RecentDestinationRepositoryImpl
 import com.shatrughna.drivemate.driving.DriveMateSessionService
+import com.shatrughna.drivemate.driving.MotionHysteresis
+import com.shatrughna.drivemate.driving.MotionState
 import com.shatrughna.drivemate.driving.DrivingSessionManager
 import com.shatrughna.drivemate.driving.DrivingSessionManagerImpl
 import com.shatrughna.drivemate.driving.TripHistoryRepository
@@ -254,13 +256,20 @@ class DriveMateApplication : Application() {
         }
 
         applicationScope.launch {
+            val motionHysteresis = MotionHysteresis()
             vehicleTelemetryRepository.telemetry.collectLatest { telemetry ->
-                val directMotion = telemetry.androidAutoConnected &&
-                    telemetry.speedSource == com.shatrughna.drivemate.core.telemetry.TelemetrySource.ANDROID_AUTO_CAR_HARDWARE &&
-                    telemetry.speedAvailability == com.shatrughna.drivemate.core.telemetry.TelemetryAvailability.LIVE &&
-                    (telemetry.speedKmh ?: 0f) >= 5f
-                if (directMotion) {
-                    sessionManager.startDrivingSession()
+                val motionSpeed = telemetry.speedKmh?.takeIf {
+                    telemetry.androidAutoConnected &&
+                        telemetry.speedAvailability == com.shatrughna.drivemate.core.telemetry.TelemetryAvailability.LIVE &&
+                        telemetry.speedSource in setOf(
+                            com.shatrughna.drivemate.core.telemetry.TelemetrySource.ANDROID_AUTO_CAR_HARDWARE,
+                            com.shatrughna.drivemate.core.telemetry.TelemetrySource.PHONE_GPS
+                        )
+                }
+                when (motionHysteresis.update(motionSpeed)) {
+                    MotionState.MOVING -> sessionManager.startDrivingSession()
+                    MotionState.STOPPED -> sessionManager.stopDrivingSession("Vehicle stopped")
+                    MotionState.UNKNOWN -> Unit
                 }
             }
         }
