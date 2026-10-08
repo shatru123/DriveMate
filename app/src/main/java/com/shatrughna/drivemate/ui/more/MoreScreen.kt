@@ -43,6 +43,7 @@ import com.shatrughna.drivemate.ui.theme.TextMuted
 import com.shatrughna.drivemate.ui.theme.TextPrimary
 import com.shatrughna.drivemate.ui.theme.TextSecondary
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun MoreScreen(
     onDocuments: () -> Unit,
