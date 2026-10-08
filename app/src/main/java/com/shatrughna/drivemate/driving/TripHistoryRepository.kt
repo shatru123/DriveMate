@@ -21,15 +21,23 @@ interface TripHistoryRepository {
     val latestTrip: StateFlow<TripReport?>
     suspend fun saveTrip(trip: TripReport)
     suspend fun clearHistory()
+    suspend fun switchUser(userId: String?) {}
 }
 
 class TripHistoryRepositoryImpl(
-    private val context: Context,
+    private val context: Context? = null,
+    private val filesDir: File = context?.filesDir ?: File(System.getProperty("java.io.tmpdir"), "drivemate_trips"),
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 ) : TripHistoryRepository {
 
+    private var currentUserId: String? = null
+
     private val tripsFile: File
-        get() = File(context.filesDir, "drivemate_trips.json")
+        get() = if (currentUserId != null) {
+            File(File(File(filesDir, "users"), currentUserId), "drivemate_trips.json")
+        } else {
+            File(filesDir, "drivemate_trips.json")
+        }
 
     private val _recentTrips = MutableStateFlow<List<TripReport>>(emptyList())
     override val recentTrips: StateFlow<List<TripReport>> = _recentTrips.asStateFlow()
@@ -41,6 +49,27 @@ class TripHistoryRepositoryImpl(
         scope.launch {
             loadTripsFromStorage()
         }
+    }
+
+    override suspend fun switchUser(userId: String?) = withContext(Dispatchers.IO) {
+        currentUserId = userId
+        if (userId == null) {
+            _recentTrips.value = emptyList()
+            _latestTrip.value = null
+            return@withContext
+        }
+        val targetFile = tripsFile
+        targetFile.parentFile?.mkdirs()
+        val legacyFile = File(filesDir, "drivemate_trips.json")
+        if (!targetFile.exists() && legacyFile.exists()) {
+            try {
+                legacyFile.copyTo(targetFile, overwrite = true)
+                AppLogger.i(AppLogger.Tag.SESSION, "TripHistory: Migrated legacy trips to user $userId")
+            } catch (e: Exception) {
+                AppLogger.e(AppLogger.Tag.SESSION, "TripHistory: Failed migrating legacy trips", e)
+            }
+        }
+        loadTripsFromStorage()
     }
 
     override suspend fun saveTrip(trip: TripReport) = withContext(Dispatchers.IO) {
@@ -57,16 +86,26 @@ class TripHistoryRepositoryImpl(
     override suspend fun clearHistory() = withContext(Dispatchers.IO) {
         _recentTrips.value = emptyList()
         _latestTrip.value = null
-        if (tripsFile.exists()) {
-            tripsFile.delete()
+        val file = tripsFile
+        if (file.exists()) {
+            file.delete()
         }
     }
 
     private fun loadTripsFromStorage() {
         try {
-            if (!tripsFile.exists()) return
-            val jsonString = tripsFile.readText()
-            if (jsonString.isBlank()) return
+            val file = tripsFile
+            if (!file.exists()) {
+                _recentTrips.value = emptyList()
+                _latestTrip.value = null
+                return
+            }
+            val jsonString = file.readText()
+            if (jsonString.isBlank()) {
+                _recentTrips.value = emptyList()
+                _latestTrip.value = null
+                return
+            }
 
             val jsonArray = JSONArray(jsonString)
             val loadedList = mutableListOf<TripReport>()
@@ -115,6 +154,8 @@ class TripHistoryRepositoryImpl(
 
     private fun persistTripsToFile(trips: List<TripReport>) {
         try {
+            val file = tripsFile
+            file.parentFile?.mkdirs()
             val jsonArray = JSONArray()
             for (trip in trips) {
                 val obj = JSONObject().apply {
@@ -145,7 +186,7 @@ class TripHistoryRepositoryImpl(
                 }
                 jsonArray.put(obj)
             }
-            tripsFile.writeText(jsonArray.toString())
+            file.writeText(jsonArray.toString())
         } catch (e: Exception) {
             AppLogger.e(AppLogger.Tag.SESSION, "Failed to persist trip history: ${e.message}", e)
         }

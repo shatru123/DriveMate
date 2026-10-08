@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -24,18 +25,28 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.Image
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.LocalGasStation
 import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import com.shatrughna.drivemate.util.VehiclePhotoLoader
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -642,6 +653,22 @@ fun DriveMateVehicleIdentityPanel(
         else -> "Configure your vehicle profile"
     }
 
+    val context = LocalContext.current
+    var showVehicleZoom by remember { mutableStateOf(false) }
+    val vehicleThumbnail by produceState<ImageBitmap?>(initialValue = null, settings.vehiclePhotoUri) {
+        value = VehiclePhotoLoader.loadOptimizedBitmap(context, settings.vehiclePhotoUri, maxDimension = 512)
+    }
+
+    if (showVehicleZoom && (vehicleThumbnail != null || !settings.vehiclePhotoUri.isNullOrBlank())) {
+        ZoomablePhotoViewerDialog(
+            title = title,
+            subtitle = subtitle,
+            imageBitmap = vehicleThumbnail,
+            imageUri = settings.vehiclePhotoUri,
+            onDismiss = { showVehicleZoom = false }
+        )
+    }
+
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -659,15 +686,41 @@ fun DriveMateVehicleIdentityPanel(
                     .size(58.dp)
                     .clip(RoundedCornerShape(18.dp))
                     .background(NexonCyanPrimary.copy(alpha = 0.13f))
-                    .border(1.dp, NexonCyanPrimary.copy(alpha = 0.30f), RoundedCornerShape(18.dp)),
+                    .border(1.dp, NexonCyanPrimary.copy(alpha = 0.30f), RoundedCornerShape(18.dp))
+                    .clickable(enabled = vehicleThumbnail != null || !settings.vehiclePhotoUri.isNullOrBlank()) {
+                        showVehicleZoom = true
+                    },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = Icons.Default.DirectionsCar,
-                    contentDescription = "Vehicle profile",
-                    tint = NexonCyanPrimary,
-                    modifier = Modifier.size(30.dp)
-                )
+                if (vehicleThumbnail != null) {
+                    Image(
+                        bitmap = vehicleThumbnail!!,
+                        contentDescription = "Vehicle Photo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(18.dp)
+                            .background(DarkBorder.copy(alpha = 0.85f), RoundedCornerShape(topStart = 6.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ZoomIn,
+                            contentDescription = "Zoom",
+                            tint = NexonCyanPrimary,
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.DirectionsCar,
+                        contentDescription = "Vehicle profile",
+                        tint = NexonCyanPrimary,
+                        modifier = Modifier.size(30.dp)
+                    )
+                }
             }
             Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {

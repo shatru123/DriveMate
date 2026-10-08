@@ -37,6 +37,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.ZoomIn
+import com.shatrughna.drivemate.ui.components.ZoomablePhotoViewerDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -124,6 +126,7 @@ fun SettingsScreen(
     onToggleDemoMode: (Boolean) -> Unit = {},
     onSeedDemoData: () -> Unit = {},
     onClearDemoData: () -> Unit = {},
+    onNavigateToAbout: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
@@ -131,6 +134,8 @@ fun SettingsScreen(
     val templateValidation by viewModel.templateValidation.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
+    var showVehicleZoom by remember { mutableStateOf(false) }
+
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
@@ -142,6 +147,16 @@ fun SettingsScreen(
     // Vehicle photo preview bitmap with safe downsampling & EXIF orientation handling
     val vehicleThumbnail by produceState<ImageBitmap?>(initialValue = null, settings.vehiclePhotoUri) {
         value = VehiclePhotoLoader.loadOptimizedBitmap(context, settings.vehiclePhotoUri, maxDimension = 512)
+    }
+
+    if (showVehicleZoom && vehicleThumbnail != null) {
+        ZoomablePhotoViewerDialog(
+            title = settings.fullVehicleName.takeUnless { it == "Connected vehicle" } ?: "Vehicle Photo",
+            subtitle = settings.vehicleRegistrationNumber.takeIf { it.isNotBlank() },
+            imageBitmap = vehicleThumbnail,
+            imageUri = settings.vehiclePhotoUri,
+            onDismiss = { showVehicleZoom = false }
+        )
     }
 
     var driverNameInput by remember(settings.driverName) { mutableStateOf(settings.driverName) }
@@ -282,15 +297,38 @@ fun SettingsScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             if (vehicleThumbnail != null) {
-                                Image(
-                                    bitmap = vehicleThumbnail!!,
-                                    contentDescription = "Car Photo",
-                                    contentScale = ContentScale.Crop,
+                                Box(
                                     modifier = Modifier
                                         .size(54.dp)
                                         .clip(RoundedCornerShape(10.dp))
                                         .border(1.5.dp, NexonCyanPrimary, RoundedCornerShape(10.dp))
-                                )
+                                        .clickable(
+                                            onClickLabel = "Zoom vehicle photo",
+                                            onClick = { showVehicleZoom = true }
+                                        )
+                                ) {
+                                    Image(
+                                        bitmap = vehicleThumbnail!!,
+                                        contentDescription = "Car Photo",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomEnd)
+                                            .size(18.dp)
+                                            .background(DarkSurface, RoundedCornerShape(topStart = 6.dp))
+                                            .border(0.5.dp, NexonCyanPrimary.copy(alpha = 0.6f), RoundedCornerShape(topStart = 6.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.ZoomIn,
+                                            contentDescription = "Zoom",
+                                            tint = NexonCyanPrimary,
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                    }
+                                }
                                 Spacer(modifier = Modifier.width(12.dp))
                             }
                             Column(modifier = Modifier.weight(1f)) {
@@ -1157,6 +1195,30 @@ fun SettingsScreen(
             // 12. Verified Creator Profile
             DriveMateSectionHeader(title = "About Developer & Creator")
             CreatorCard()
+
+            if (onNavigateToAbout != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedButton(
+                    onClick = onNavigateToAbout,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .rememberPressScale(),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, NexonCyanPrimary.copy(alpha = 0.5f)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NexonCyanPrimary)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "About",
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Explore Full About DriveMate",
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(30.dp))
         }

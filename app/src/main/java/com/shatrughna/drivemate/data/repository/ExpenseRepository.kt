@@ -26,10 +26,12 @@ interface ExpenseRepository {
     fun getSummary(currentOdometerKm: Double): ExpenseSummary
     suspend fun seedDemoExpenses()
     suspend fun clearDemoExpenses()
+    suspend fun switchUser(userId: String?) {}
 }
 
 class ExpenseRepositoryImpl(
-    private val context: Context,
+    private val context: Context? = null,
+    private val filesDir: File = context?.filesDir ?: File(System.getProperty("java.io.tmpdir"), "drivemate_expenses"),
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 ) : ExpenseRepository {
 
@@ -38,21 +40,45 @@ class ExpenseRepositoryImpl(
         private const val FILE_NAME = "expenses.json"
     }
 
+    private var currentUserId: String? = null
+
     private val _expenses = MutableStateFlow<List<VehicleExpense>>(emptyList())
     override val expenses: StateFlow<List<VehicleExpense>> = _expenses.asStateFlow()
 
-    private val storageDir: File by lazy {
-        File(context.filesDir, DIRECTORY_NAME).apply { if (!exists()) mkdirs() }
-    }
+    private val storageDir: File
+        get() = if (currentUserId != null) {
+            File(File(File(filesDir, "users"), currentUserId), DIRECTORY_NAME).apply { if (!exists()) mkdirs() }
+        } else {
+            File(filesDir, DIRECTORY_NAME).apply { if (!exists()) mkdirs() }
+        }
 
-    private val storageFile: File by lazy {
-        File(storageDir, FILE_NAME)
-    }
+    private val storageFile: File
+        get() = File(storageDir, FILE_NAME)
 
     init {
         scope.launch {
             loadFromDisk()
         }
+    }
+
+    override suspend fun switchUser(userId: String?) = withContext(Dispatchers.IO) {
+        currentUserId = userId
+        if (userId == null) {
+            _expenses.value = emptyList()
+            return@withContext
+        }
+        val targetFile = storageFile
+        val legacyFile = File(File(filesDir, DIRECTORY_NAME), FILE_NAME)
+        if (!targetFile.exists() && legacyFile.exists()) {
+            try {
+                targetFile.parentFile?.mkdirs()
+                legacyFile.copyTo(targetFile, overwrite = true)
+                AppLogger.i(AppLogger.Tag.APP, "ExpenseRepository: Migrated legacy expenses to user $userId")
+            } catch (e: Exception) {
+                AppLogger.e(AppLogger.Tag.APP, "ExpenseRepository: Failed migrating legacy expenses", e)
+            }
+        }
+        loadFromDisk()
     }
 
     private suspend fun loadFromDisk() = withContext(Dispatchers.IO) {

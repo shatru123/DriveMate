@@ -23,6 +23,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -47,9 +52,20 @@ import com.shatrughna.drivemate.ui.theme.NexonCyanPrimary
 
 @Composable
 fun CreatorCard(
+    onPhotoClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    var showInternalZoom by remember { mutableStateOf(false) }
+
+    if (showInternalZoom) {
+        ZoomablePhotoViewerDialog(
+            title = "Shatrughna Ambhore",
+            subtitle = "Creator & Lead Engineer • DriveMate",
+            drawableRes = R.drawable.shatrughna,
+            onDismiss = { showInternalZoom = false }
+        )
+    }
 
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -65,12 +81,22 @@ fun CreatorCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Creator Photo with Cyan Glow Ring
+                // Creator Photo with Cyan Glow Ring & Zoom click
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .size(72.dp)
                         .background(NexonCyanPrimary.copy(alpha = 0.15f), CircleShape)
+                        .clickable(
+                            onClickLabel = "View creator photo",
+                            onClick = {
+                                if (onPhotoClick != null) {
+                                    onPhotoClick()
+                                } else {
+                                    showInternalZoom = true
+                                }
+                            }
+                        )
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.shatrughna),
@@ -81,6 +107,23 @@ fun CreatorCard(
                             .clip(CircleShape)
                             .border(2.dp, NexonCyanPrimary, CircleShape)
                     )
+
+                    // Small Zoom Indicator Badge
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(20.dp)
+                            .background(DarkSurface, CircleShape)
+                            .border(1.dp, NexonCyanPrimary.copy(alpha = 0.6f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ZoomIn,
+                            contentDescription = "Zoom",
+                            tint = NexonCyanPrimary,
+                            modifier = Modifier.size(13.dp)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.width(14.dp))

@@ -61,6 +61,16 @@ interface DriveMatePreferencesRepository {
     suspend fun updateWakeWordSensitivity(sensitivity: Float)
     suspend fun updateDemoModeEnabled(enabled: Boolean)
     suspend fun updateAutoGreetingOnAndroidAuto(enabled: Boolean)
+    suspend fun syncActiveProfile(
+        driverName: String,
+        vehicleBrand: String,
+        vehicleModel: String,
+        vehicleVariant: String,
+        registrationNumber: String,
+        odometerKm: Double?,
+        photoUri: String?
+    ) {}
+    suspend fun clearActiveUserSession() {}
     suspend fun resetToDefaults()
 }
 
@@ -417,6 +427,46 @@ class DriveMatePreferencesRepositoryImpl(
     override suspend fun updateWakeWordSensitivity(sensitivity: Float) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.WAKE_WORD_SENSITIVITY] = sensitivity.coerceIn(0.1f, 1.0f)
+        }
+    }
+
+    override suspend fun syncActiveProfile(
+        driverName: String,
+        vehicleBrand: String,
+        vehicleModel: String,
+        vehicleVariant: String,
+        registrationNumber: String,
+        odometerKm: Double?,
+        photoUri: String?
+    ) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.DRIVER_NAME] = driverName
+            preferences[PreferencesKeys.VEHICLE_BRAND] = vehicleBrand
+            preferences[PreferencesKeys.VEHICLE_MODEL] = vehicleModel
+            preferences[PreferencesKeys.VEHICLE_VARIANT] = vehicleVariant
+            preferences[PreferencesKeys.VEHICLE_REGISTRATION] = registrationNumber
+            odometerKm?.let { preferences[PreferencesKeys.ODOMETER_DOUBLE] = it }
+            if (photoUri != null) {
+                preferences[PreferencesKeys.VEHICLE_PHOTO_URI] = photoUri
+            } else {
+                preferences.remove(PreferencesKeys.VEHICLE_PHOTO_URI)
+            }
+        }
+    }
+
+    override suspend fun clearActiveUserSession() {
+        context.dataStore.edit { preferences ->
+            preferences.remove(PreferencesKeys.DRIVER_NAME)
+            preferences.remove(PreferencesKeys.VEHICLE_BRAND)
+            preferences.remove(PreferencesKeys.VEHICLE_MODEL)
+            preferences.remove(PreferencesKeys.VEHICLE_VARIANT)
+            preferences.remove(PreferencesKeys.VEHICLE_REGISTRATION)
+            preferences.remove(PreferencesKeys.VEHICLE_PHOTO_URI)
+            preferences.remove(PreferencesKeys.ODOMETER_DOUBLE)
+            preferences.remove(PreferencesKeys.ODOMETER_KM)
+            preferences.remove(PreferencesKeys.LAST_PARKED_LAT)
+            preferences.remove(PreferencesKeys.LAST_PARKED_LON)
+            preferences.remove(PreferencesKeys.LAST_PARKED_ADDRESS)
         }
     }
 

@@ -22,10 +22,12 @@ interface RecentDestinationRepository {
     val recentDestinations: StateFlow<List<Destination>>
     suspend fun addDestination(destination: Destination)
     suspend fun clearHistory()
+    suspend fun switchUser(userId: String?) {}
 }
 
 class RecentDestinationRepositoryImpl(
-    private val context: Context,
+    private val context: Context? = null,
+    private val filesDir: File = context?.filesDir ?: File(System.getProperty("java.io.tmpdir"), "drivemate_destinations"),
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 ) : RecentDestinationRepository {
 
@@ -34,17 +36,42 @@ class RecentDestinationRepositoryImpl(
         const val MAX_RECENT_COUNT = 15
     }
 
+    private var currentUserId: String? = null
+
     private val _recentDestinations = MutableStateFlow<List<Destination>>(emptyList())
     override val recentDestinations: StateFlow<List<Destination>> = _recentDestinations.asStateFlow()
 
-    private val storageFile: File by lazy {
-        File(context.filesDir, FILE_NAME)
-    }
+    private val storageFile: File
+        get() = if (currentUserId != null) {
+            File(File(File(filesDir, "users"), currentUserId), FILE_NAME)
+        } else {
+            File(filesDir, FILE_NAME)
+        }
 
     init {
         scope.launch {
             loadFromDisk()
         }
+    }
+
+    override suspend fun switchUser(userId: String?) = withContext(Dispatchers.IO) {
+        currentUserId = userId
+        if (userId == null) {
+            _recentDestinations.value = emptyList()
+            return@withContext
+        }
+        val targetFile = storageFile
+        targetFile.parentFile?.mkdirs()
+        val legacyFile = File(filesDir, FILE_NAME)
+        if (!targetFile.exists() && legacyFile.exists()) {
+            try {
+                legacyFile.copyTo(targetFile, overwrite = true)
+                AppLogger.i(AppLogger.Tag.APP, "RecentDestinationRepository: Migrated legacy destinations to user $userId")
+            } catch (e: Exception) {
+                AppLogger.e(AppLogger.Tag.APP, "RecentDestinationRepository: Failed migrating legacy destinations", e)
+            }
+        }
+        loadFromDisk()
     }
 
     private suspend fun loadFromDisk() = withContext(Dispatchers.IO) {
@@ -103,6 +130,7 @@ class RecentDestinationRepositoryImpl(
 
     private fun saveToDisk(list: List<Destination>) {
         try {
+            storageFile.parentFile?.mkdirs()
             val jsonArray = JSONArray()
             for (dest in list) {
                 val obj = JSONObject().apply {

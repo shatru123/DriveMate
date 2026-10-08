@@ -35,7 +35,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.LaunchedEffect
+import com.shatrughna.drivemate.auth.model.AuthState
+import com.shatrughna.drivemate.ui.about.AboutScreen
 import com.shatrughna.drivemate.ui.analytics.DrivingAnalyticsScreen
+import com.shatrughna.drivemate.ui.auth.AddVehicleScreen
+import com.shatrughna.drivemate.ui.auth.AuthViewModel
+import com.shatrughna.drivemate.ui.auth.ForgotPasswordScreen
+import com.shatrughna.drivemate.ui.auth.LoginScreen
+import com.shatrughna.drivemate.ui.auth.SignUpScreen
+import com.shatrughna.drivemate.ui.auth.WelcomeScreen
 import com.shatrughna.drivemate.ui.climate.ClimateScreen
 import com.shatrughna.drivemate.ui.components.DriveMateBottomBar
 import com.shatrughna.drivemate.ui.components.DriveMateTopLevelDestination
@@ -59,6 +68,11 @@ import com.shatrughna.drivemate.ui.voice.AssistantScreen
 
 sealed class Screen {
     data object Splash : Screen()
+    data object Welcome : Screen()
+    data object Login : Screen()
+    data object SignUp : Screen()
+    data object ForgotPassword : Screen()
+    data object AddVehicle : Screen()
     data object Dashboard : Screen()
     data object Diagnostics : Screen()
     data object MyCar : Screen()
@@ -72,6 +86,7 @@ sealed class Screen {
     data object Settings : Screen()
     data object Assistant : Screen()
     data object More : Screen()
+    data object About : Screen()
 }
 
 class MainActivity : ComponentActivity() {
@@ -115,6 +130,14 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private val authViewModel: AuthViewModel by viewModels {
+        val app = application as DriveMateApplication
+        AuthViewModel.Factory(
+            authRepository = app.authRepository,
+            vehicleRepository = app.vehicleRepository
+        )
+    }
+
     private val requestNotificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -135,7 +158,8 @@ class MainActivity : ComponentActivity() {
                 ) {
                     DriveMateAppNavigation(
                         mainViewModel = mainViewModel,
-                        settingsViewModel = settingsViewModel
+                        settingsViewModel = settingsViewModel,
+                        authViewModel = authViewModel
                     )
                 }
             }
@@ -155,21 +179,50 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun DriveMateAppNavigation(
     mainViewModel: MainViewModel,
-    settingsViewModel: SettingsViewModel
+    settingsViewModel: SettingsViewModel,
+    authViewModel: AuthViewModel
 ) {
     val app = LocalContext.current.applicationContext as DriveMateApplication
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Splash) }
 
-    // Intercept back presses when on sub-screens to return safely to Dashboard or MyCar
+    val authState by authViewModel.authState.collectAsStateWithLifecycle()
+    val currentUser by authViewModel.currentUser.collectAsStateWithLifecycle()
+    val currentVehicle by authViewModel.currentVehicle.collectAsStateWithLifecycle()
+
+    // Observe AuthState transitions
+    LaunchedEffect(authState) {
+        if (currentScreen != Screen.Splash) {
+            when (val state = authState) {
+                is AuthState.LoggedOut -> {
+                    if (currentScreen !in setOf(Screen.Welcome, Screen.Login, Screen.SignUp, Screen.ForgotPassword)) {
+                        currentScreen = Screen.Welcome
+                    }
+                }
+                is AuthState.LoggedIn -> {
+                    if (currentScreen in setOf(Screen.Welcome, Screen.Login, Screen.SignUp, Screen.ForgotPassword)) {
+                        currentScreen = if (state.hasVehicle) Screen.Dashboard else Screen.AddVehicle
+                    }
+                }
+                AuthState.Loading -> Unit
+            }
+        }
+    }
+
+    // Intercept back presses when on sub-screens to return safely
     BackHandler(
         enabled = currentScreen != Screen.Dashboard &&
             currentScreen != Screen.Splash &&
+            currentScreen != Screen.Welcome &&
             currentScreen != Screen.Assistant &&
             currentScreen != Screen.More
     ) {
         currentScreen = when (currentScreen) {
             Screen.DocumentVault, Screen.Maintenance, Screen.Expenses,
             Screen.Climate, Screen.ParkingMode, Screen.VehicleTimeline -> Screen.MyCar
+            Screen.Login, Screen.SignUp -> Screen.Welcome
+            Screen.ForgotPassword -> Screen.Login
+            Screen.AddVehicle -> if (currentVehicle != null) Screen.Dashboard else Screen.Welcome
+            Screen.About -> Screen.More
             else -> Screen.Dashboard
         }
     }
@@ -193,7 +246,7 @@ fun DriveMateAppNavigation(
         Screen.DrivingAnalytics -> DriveMateTopLevelDestination.DRIVE
         Screen.MyCar -> DriveMateTopLevelDestination.VEHICLE
         Screen.Assistant -> DriveMateTopLevelDestination.ASSISTANT
-        Screen.More -> DriveMateTopLevelDestination.MORE
+        Screen.More, Screen.About -> DriveMateTopLevelDestination.MORE
         else -> null
     }
 
@@ -255,7 +308,12 @@ fun DriveMateAppNavigation(
                 when (screen) {
             Screen.Splash -> {
                 SplashScreen(
-                    onSplashComplete = { currentScreen = Screen.Dashboard }
+                    onSplashComplete = {
+                        currentScreen = when (val state = authState) {
+                            is AuthState.LoggedIn -> if (state.hasVehicle) Screen.Dashboard else Screen.AddVehicle
+                            else -> Screen.Welcome
+                        }
+                    }
                 )
             }
             Screen.Dashboard -> {
@@ -372,6 +430,7 @@ fun DriveMateAppNavigation(
                     onToggleDemoMode = mainViewModel::setDemoMode,
                     onSeedDemoData = mainViewModel::seedDemoData,
                     onClearDemoData = mainViewModel::clearDemoData,
+                    onNavigateToAbout = { currentScreen = Screen.About },
                     onNavigateBack = { currentScreen = Screen.Dashboard }
                 )
             }
@@ -380,12 +439,71 @@ fun DriveMateAppNavigation(
             }
             Screen.More -> {
                 MoreScreen(
+                    user = currentUser,
+                    vehicle = currentVehicle,
+                    onLogout = {
+                        authViewModel.logout()
+                        currentScreen = Screen.Welcome
+                    },
+                    onUploadProfilePhoto = { uri ->
+                        authViewModel.uploadProfilePhoto(app, uri)
+                    },
+                    onRemoveProfilePhoto = {
+                        authViewModel.removeProfilePhoto(app)
+                    },
                     onDocuments = { currentScreen = Screen.DocumentVault },
                     onMaintenance = { currentScreen = Screen.Maintenance },
                     onExpenses = { currentScreen = Screen.Expenses },
                     onParking = { currentScreen = Screen.ParkingMode },
                     onDiagnostics = { currentScreen = Screen.Diagnostics },
-                    onSettings = { currentScreen = Screen.Settings }
+                    onSettings = { currentScreen = Screen.Settings },
+                    onAbout = { currentScreen = Screen.About }
+                )
+            }
+            Screen.About -> {
+                AboutScreen(
+                    onNavigateBack = { currentScreen = Screen.More }
+                )
+            }
+            Screen.Welcome -> {
+                WelcomeScreen(
+                    onNavigateToLogin = { currentScreen = Screen.Login },
+                    onNavigateToSignUp = { currentScreen = Screen.SignUp }
+                )
+            }
+            Screen.Login -> {
+                LoginScreen(
+                    viewModel = authViewModel,
+                    onNavigateBack = { currentScreen = Screen.Welcome },
+                    onNavigateToSignUp = { currentScreen = Screen.SignUp },
+                    onNavigateToForgotPassword = { currentScreen = Screen.ForgotPassword },
+                    onLoginSuccess = {
+                        currentScreen = if (authViewModel.currentVehicle.value != null) Screen.Dashboard else Screen.AddVehicle
+                    }
+                )
+            }
+            Screen.SignUp -> {
+                SignUpScreen(
+                    viewModel = authViewModel,
+                    onNavigateBack = { currentScreen = Screen.Welcome },
+                    onNavigateToLogin = { currentScreen = Screen.Login },
+                    onSignUpSuccess = {
+                        currentScreen = Screen.AddVehicle
+                    }
+                )
+            }
+            Screen.ForgotPassword -> {
+                ForgotPasswordScreen(
+                    viewModel = authViewModel,
+                    onNavigateBack = { currentScreen = Screen.Login }
+                )
+            }
+            Screen.AddVehicle -> {
+                AddVehicleScreen(
+                    viewModel = authViewModel,
+                    onVehicleSaved = {
+                        currentScreen = Screen.Dashboard
+                    }
                 )
             }
                 }

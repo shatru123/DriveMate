@@ -24,10 +24,12 @@ interface DocumentVaultRepository {
     fun getDocument(id: String): VehicleDocument?
     suspend fun seedDemoDocuments()
     suspend fun clearDemoDocuments()
+    suspend fun switchUser(userId: String?) {}
 }
 
 class DocumentVaultRepositoryImpl(
-    private val context: Context,
+    private val context: Context? = null,
+    private val filesDir: File = context?.filesDir ?: File(System.getProperty("java.io.tmpdir"), "drivemate_docs"),
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 ) : DocumentVaultRepository {
 
@@ -36,21 +38,45 @@ class DocumentVaultRepositoryImpl(
         private const val FILE_NAME = "vehicle_vault.json"
     }
 
+    private var currentUserId: String? = null
+
     private val _documents = MutableStateFlow<List<VehicleDocument>>(emptyList())
     override val documents: StateFlow<List<VehicleDocument>> = _documents.asStateFlow()
 
-    private val storageDir: File by lazy {
-        File(context.filesDir, DIRECTORY_NAME).apply { if (!exists()) mkdirs() }
-    }
+    private val storageDir: File
+        get() = if (currentUserId != null) {
+            File(File(File(filesDir, "users"), currentUserId), DIRECTORY_NAME).apply { if (!exists()) mkdirs() }
+        } else {
+            File(filesDir, DIRECTORY_NAME).apply { if (!exists()) mkdirs() }
+        }
 
-    private val storageFile: File by lazy {
-        File(storageDir, FILE_NAME)
-    }
+    private val storageFile: File
+        get() = File(storageDir, FILE_NAME)
 
     init {
         scope.launch {
             loadFromDisk()
         }
+    }
+
+    override suspend fun switchUser(userId: String?) = withContext(Dispatchers.IO) {
+        currentUserId = userId
+        if (userId == null) {
+            _documents.value = emptyList()
+            return@withContext
+        }
+        val targetFile = storageFile
+        val legacyFile = File(File(filesDir, DIRECTORY_NAME), FILE_NAME)
+        if (!targetFile.exists() && legacyFile.exists()) {
+            try {
+                targetFile.parentFile?.mkdirs()
+                legacyFile.copyTo(targetFile, overwrite = true)
+                AppLogger.i(AppLogger.Tag.APP, "DocumentVaultRepository: Migrated legacy documents to user $userId")
+            } catch (e: Exception) {
+                AppLogger.e(AppLogger.Tag.APP, "DocumentVaultRepository: Failed migrating legacy documents", e)
+            }
+        }
+        loadFromDisk()
     }
 
     private suspend fun loadFromDisk() = withContext(Dispatchers.IO) {

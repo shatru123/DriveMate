@@ -43,6 +43,10 @@ import com.shatrughna.drivemate.weather.OpenMeteoWeatherRepository
 import com.shatrughna.drivemate.weather.WeatherRepository
 import com.shatrughna.drivemate.core.telemetry.VehicleDataCoordinator
 import com.shatrughna.drivemate.core.telemetry.VehicleTelemetryRepository
+import com.shatrughna.drivemate.auth.repository.AuthRepository
+import com.shatrughna.drivemate.auth.repository.AuthRepositoryImpl
+import com.shatrughna.drivemate.vehicle.repository.VehicleRepository
+import com.shatrughna.drivemate.vehicle.repository.VehicleRepositoryImpl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -54,6 +58,12 @@ import kotlinx.coroutines.launch
  * hands-free voice coordinator, and background service coordination.
  */
 class DriveMateApplication : Application() {
+
+    lateinit var authRepository: AuthRepository
+        private set
+
+    lateinit var vehicleRepository: VehicleRepository
+        private set
 
     lateinit var preferencesRepository: DriveMatePreferencesRepository
         private set
@@ -145,6 +155,8 @@ class DriveMateApplication : Application() {
         super.onCreate()
         AppLogger.i(AppLogger.Tag.APP, "Initializing DriveMate Application (Production Automotive Architecture)...")
 
+        authRepository = AuthRepositoryImpl(this)
+        vehicleRepository = VehicleRepositoryImpl(this)
         preferencesRepository = DriveMatePreferencesRepositoryImpl(this)
         carConnectionManager = AndroidAutoCarConnectionManager(this)
         sessionManager = DrivingSessionManagerImpl(carConnectionManager)
@@ -271,6 +283,63 @@ class DriveMateApplication : Application() {
                     MotionState.MOVING -> sessionManager.startDrivingSession()
                     MotionState.STOPPED -> sessionManager.stopDrivingSession("Vehicle stopped")
                     MotionState.UNKNOWN -> Unit
+                }
+            }
+        }
+
+        // User-scoped data isolation and preferences sync
+        applicationScope.launch {
+            authRepository.currentUser.collectLatest { user ->
+                if (user != null) {
+                    AppLogger.i(AppLogger.Tag.APP, "DriveMateApplication: Switching repositories to user ${user.id}")
+                    tripHistoryRepository.switchUser(user.id)
+                    expenseRepository.switchUser(user.id)
+                    maintenanceRepository.switchUser(user.id)
+                    documentVaultRepository.switchUser(user.id)
+                    recentDestinationRepository.switchUser(user.id)
+
+                    val vehicle = vehicleRepository.loadVehicleForUser(user.id)
+                    authRepository.refreshVehicleContext(vehicle)
+                    if (vehicle != null) {
+                        preferencesRepository.syncActiveProfile(
+                            driverName = user.name,
+                            vehicleBrand = vehicle.make,
+                            vehicleModel = vehicle.model,
+                            vehicleVariant = vehicle.variant,
+                            registrationNumber = vehicle.registrationNumber,
+                            odometerKm = vehicle.currentOdometer,
+                            photoUri = vehicle.photoUri
+                        )
+                    } else {
+                        preferencesRepository.updateDriverName(user.name)
+                    }
+                } else {
+                    AppLogger.i(AppLogger.Tag.APP, "DriveMateApplication: User logged out, resetting repository scopes")
+                    tripHistoryRepository.switchUser(null)
+                    expenseRepository.switchUser(null)
+                    maintenanceRepository.switchUser(null)
+                    documentVaultRepository.switchUser(null)
+                    recentDestinationRepository.switchUser(null)
+                    vehicleRepository.clearVehicleContext()
+                    preferencesRepository.clearActiveUserSession()
+                }
+            }
+        }
+
+        applicationScope.launch {
+            vehicleRepository.currentVehicle.collectLatest { vehicle ->
+                authRepository.refreshVehicleContext(vehicle)
+                val user = authRepository.currentUser.value
+                if (user != null && vehicle != null) {
+                    preferencesRepository.syncActiveProfile(
+                        driverName = user.name,
+                        vehicleBrand = vehicle.make,
+                        vehicleModel = vehicle.model,
+                        vehicleVariant = vehicle.variant,
+                        registrationNumber = vehicle.registrationNumber,
+                        odometerKm = vehicle.currentOdometer,
+                        photoUri = vehicle.photoUri
+                    )
                 }
             }
         }
