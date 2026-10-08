@@ -37,7 +37,8 @@ interface GreetingTtsManager {
     val isSpeaking: StateFlow<Boolean>
 
     suspend fun initialize(): Result<Unit>
-    suspend fun speak(text: String): Result<Unit>
+    suspend fun speak(text: String, locale: Locale? = null): Result<Unit>
+    fun isLanguageAvailable(locale: Locale): Boolean
     fun stop()
     fun shutdown()
 
@@ -213,7 +214,13 @@ class GreetingTtsManagerImpl(
         }
     }
 
-    override suspend fun speak(text: String): Result<Unit> {
+    override fun isLanguageAvailable(locale: Locale): Boolean {
+        val engine = tts ?: return true
+        val result = engine.isLanguageAvailable(locale)
+        return result >= TextToSpeech.LANG_AVAILABLE
+    }
+
+    override suspend fun speak(text: String, locale: Locale?): Result<Unit> {
         if (text.isBlank()) {
             return Result.success(Unit)
         }
@@ -226,6 +233,16 @@ class GreetingTtsManagerImpl(
         }
 
         val engine = tts ?: return Result.failure(IllegalStateException("TTS not available"))
+
+        if (locale != null) {
+            val available = engine.isLanguageAvailable(locale)
+            if (available >= TextToSpeech.LANG_AVAILABLE) {
+                engine.setLanguage(locale)
+            } else {
+                AppLogger.w(AppLogger.Tag.TTS, "TTS Locale $locale not available (code $available), falling back to US English")
+                engine.setLanguage(Locale.US)
+            }
+        }
 
         // Stop any current utterance
         stop()

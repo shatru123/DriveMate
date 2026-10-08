@@ -203,6 +203,12 @@ class SettingsViewModel(
         }
     }
 
+    fun updateVoiceAssistantLanguage(language: String) {
+        viewModelScope.launch {
+            preferencesRepository.updateVoiceAssistantLanguage(language)
+        }
+    }
+
     fun updateHeyDriveMateEnabled(enabled: Boolean) {
         viewModelScope.launch {
             preferencesRepository.updateHeyDriveMateEnabled(enabled)

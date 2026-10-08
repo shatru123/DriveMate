@@ -389,13 +389,15 @@ fun VoiceAssistantSheet(
             Spacer(modifier = Modifier.height(10.dp))
 
             val suggestions = listOf(
-                "🎵 Play Believer on Spotify",
-                "🧭 Directions to Home",
-                "⛽ Nearest petrol pump",
-                "📊 Trip status",
-                "🌤️ Weather report",
+                "⚡ What is my speed?",
+                "⚡ माझा स्पीड किती आहे?",
+                "⚡ मेरी स्पीड कितनी है?",
+                "🧭 Nearest petrol pump कुठे आहे?",
                 "🚗 Where did I park?",
-                "🛠️ When is next service?"
+                "⛽ कितना fuel बचा है?",
+                "🛠️ Next service कधी आहे?",
+                "🌤️ Weather report",
+                "🎵 Play relaxing music"
             )
 
             FlowRow(

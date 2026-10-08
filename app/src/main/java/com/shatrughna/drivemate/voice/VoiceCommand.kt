@@ -83,6 +83,84 @@ sealed class VoiceCommand {
     data class WatchVideo(val query: String) : VoiceCommand()
 
     /**
+     * Inquire about current vehicle driving speed.
+     * e.g., "What is my speed?", "मेरी स्पीड कितनी है?", "माझा स्पीड किती आहे?"
+     */
+    data object CheckSpeed : VoiceCommand()
+
+    /**
+     * Inquire about vehicle odometer distance.
+     * e.g., "What is my odometer?", "मेरी गाड़ी कितने किलोमीटर चली है?", "माझ्या गाडीचे किती किलोमीटर झाले?"
+     */
+    data object CheckOdometer : VoiceCommand()
+
+    /**
+     * Inquire about remaining fuel or battery percentage.
+     * e.g., "How much fuel is left?", "गाड़ी में कितना पेट्रोल है?", "गाडीमध्ये किती पेट्रोल आहे?"
+     */
+    data object CheckFuel : VoiceCommand()
+
+    /**
+     * Inquire about estimated remaining driving range.
+     * e.g., "What's my range?", "कितनी range बची है?", "किती range बाकी आहे?"
+     */
+    data object CheckRange : VoiceCommand()
+
+    /**
+     * Inquire about overall vehicle connection and hardware diagnostic status.
+     * e.g., "Is my car okay?", "गाड़ी की स्थिति क्या है?", "गाडीची स्थिती काय आहे?"
+     */
+    data object CheckVehicleStatus : VoiceCommand()
+
+    /**
+     * Inquire about average driving speed for active trip.
+     * e.g., "What is my average speed?", "एवरेज स्पीड कितनी है?", "सरासरी वेग किती आहे?"
+     */
+    data object CheckAverageSpeed : VoiceCommand()
+
+    /**
+     * Inquire about today's cumulative driving distance and trips.
+     * e.g., "How many km did I drive today?", "आज कितने किलोमीटर गाड़ी चलाई?", "आज किती किलोमीटर गाडी चालवली?"
+     */
+    data object CheckTodayDriving : VoiceCommand()
+
+    /**
+     * Inquire about assistant capabilities and help commands.
+     * e.g., "Help", "What can you do?", "तुम क्या कर सकते हो?", "तू काय करू शकतोस?"
+     */
+    data object Help : VoiceCommand()
+
+    /**
+     * Ask about assistant identity and info.
+     * e.g., "Who are you?", "तुम कौन हो?", "तू कोण आहेस?"
+     */
+    data object AboutAssistant : VoiceCommand()
+
+    /**
+     * Ask about assistant operational readiness and listening status.
+     * e.g., "Assistant status", "Are you listening?"
+     */
+    data object AssistantStatus : VoiceCommand()
+
+    /**
+     * Request the assistant to stop listening or cancel active speech.
+     * e.g., "Stop", "Cancel", "Never mind", "रुको", "रहने दो", "थांब", "राहू दे"
+     */
+    data object StopAssistant : VoiceCommand()
+
+    /**
+     * Driver conversational greetings.
+     * e.g., "Hello", "Good morning", "नमस्ते", "नमस्कार"
+     */
+    data object Greeting : VoiceCommand()
+
+    /**
+     * Driver appreciation / closing remarks.
+     * e.g., "Thank you", "Thanks", "धन्यवाद", "आभार"
+     */
+    data object ThankYou : VoiceCommand()
+
+    /**
      * Unrecognized query.
      */
     data class Unknown(val rawQuery: String) : VoiceCommand()

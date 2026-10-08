@@ -468,6 +468,42 @@ fun SettingsScreen(
                             }
                         }
                     }
+
+                    HorizontalDivider(color = DarkBorder)
+
+                    Column {
+                        Text(
+                            text = "Voice Assistant Spoken Language",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextPrimary
+                        )
+                        Text(
+                            text = "Language for driver answers and voice synthesis",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = TextSecondary
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            listOf(
+                                "auto" to "Auto",
+                                "en" to "English",
+                                "hi" to "हिंदी",
+                                "mr" to "मराठी"
+                            ).forEach { (code, label) ->
+                                val selected = settings.voiceAssistantLanguage.equals(code, ignoreCase = true)
+                                FilterChip(
+                                    selected = selected,
+                                    onClick = { viewModel.updateVoiceAssistantLanguage(code) },
+                                    label = { Text(label) },
+                                    modifier = Modifier.rememberPressScale()
+                                )
+                            }
+                        }
+                    }
                 }
             }
 

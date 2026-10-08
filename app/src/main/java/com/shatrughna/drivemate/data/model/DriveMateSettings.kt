@@ -51,6 +51,7 @@ data class DriveMateSettings(
     val voiceAssistantEnabled: Boolean = true,
     val heyDriveMateEnabled: Boolean = false,
     val wakeWordSensitivity: Float = 0.5f,
+    val voiceAssistantLanguage: String = "auto",
     // V5 Explicit Demo Data Mode
     val isDemoModeEnabled: Boolean = false
 ) {

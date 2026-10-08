@@ -249,18 +249,14 @@ The test suite covers greeting generation, passive Android Auto sessions, truthf
      ```
   4. Plug in your phone; DriveMate will detect `CONNECTION_TYPE_PROJECTION` without automatically opening the microphone or interrupting media.
 
----
-
 ## 🗺️ Roadmap
 
-### Version 3.0 (Production Hardening, Dynamic Destinations & 3D UX) - Released ✅
-- [x] **Production Android Auto Host Validation**: Dual-mode host validation (`ALLOW_ALL_HOSTS_VALIDATOR` in debug for DHU; `androidx.car.app.R.array.hosts_allowlist_sample` in release).
-- [x] **Foreground Service Hardening**: Android 14/15 `foregroundServiceType` flags (`connectedDevice|location`), background start exception guards, and clean notification lifecycle teardown.
-- [x] **Single-Owner Microphone Arbitration**: `AudioInputCoordinator` state machine enforcing strict mutual exclusion between wake word engine and command recognizer, and locking microphone during TTS speech playback.
-- [x] **Dynamic Destination Search & Recent History**: Arbitrary navigation queries ("fuel", "airport", "vehicle service"), persistent 15-item JSON history (`drivemate_recent_destinations.json`), and contextual time-of-day suggestions.
-- [x] **Personal Vehicle Profile & HSRP**: Profile-provided vehicle identity and registration plate, photo picker copying image into internal storage, and high-precision double odometer without truncation.
-- [x] **Tasteful 3D Perspective UX**: Touch-interactive 3D hero vehicle card with physics spring return and ambient floating tilt, paired with driver-safe 2D templates on the car head unit.
-- [x] **New Android Auto Car Screens**: `CarDestinationSearchScreen`, `CarRecentDestinationsScreen`, `CarSuggestedDestinationsScreen`.
+### Version 10.3 (Multilingual Voice Assistant & Natural Speech Engine) - Released ✅
+- [x] **Multilingual Spoken Intent Matching**: Zero-latency deterministic parser supporting English, Hindi (हिंदी), Marathi (मराठी), and mixed code-switching (Hinglish/Maranglish).
+- [x] **Truthful Telemetry Answers**: Accurate, zero-hallucination vehicle telemetry queries (live speed, GPS speed, odometer, fuel level, driving range, vehicle connection status) with strict honesty contracts (LIVE vs GPS vs STALE vs UNAVAILABLE).
+- [x] **Driver Audio Lifecycle & Coordinated Arbitration**: Android Auto audio ducking, single-owner microphone locking during TTS playback, and seamless speech recognizer intent routing across English, Hindi, and Marathi locales.
+- [x] **Expanded Natural Automotive Domain**: Instant answers for fuel expenses, today's cumulative driving distance, weather forecasts, parking recall, maintenance countdowns, music streaming, and navigation.
+- [x] **Language Settings & Suggestion Chips**: In-app and Android Auto voice assistant language preference (`Auto`, `English`, `हिंदी`, `मराठी`), with dynamic multilingual suggestion chips in the Voice Assistant Sheet.
 
 ### Version 3.5 (Autonomous AI Companion)
 - [ ] **Multi-Model LLM Integration**: On-device / cloud LLM integration (Google Gemini / Claude / OpenAI).

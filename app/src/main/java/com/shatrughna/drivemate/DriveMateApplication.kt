@@ -193,6 +193,10 @@ class DriveMateApplication : Application() {
             locationResolver = locationResolver
         )
 
+        // DriveMate V6 Vehicle Telemetry Pipeline
+        vehicleDataCoordinator = VehicleDataCoordinator()
+        vehicleTelemetryRepository = VehicleTelemetryRepository(vehicleDataCoordinator, preferencesRepository)
+
         voiceAssistantManager = VoiceAssistantManagerImpl(
             context = this,
             ttsManager = ttsManager,
@@ -206,7 +210,8 @@ class DriveMateApplication : Application() {
             capabilityManager = capabilityManager,
             documentVaultRepository = documentVaultRepository,
             maintenanceRepository = maintenanceRepository,
-            expenseRepository = expenseRepository
+            expenseRepository = expenseRepository,
+            vehicleDataCoordinator = vehicleDataCoordinator
         )
 
         wakeWordEngine = SpeechRecognizerWakeWordEngine(this)
@@ -220,10 +225,6 @@ class DriveMateApplication : Application() {
             audioCoordinator = audioInputCoordinator,
             carConnectionManager = carConnectionManager
         )
-
-        // DriveMate V6 Vehicle Telemetry Pipeline
-        vehicleDataCoordinator = VehicleDataCoordinator()
-        vehicleTelemetryRepository = VehicleTelemetryRepository(vehicleDataCoordinator, preferencesRepository)
 
         // Session Lifecycle Sync: Start/Stop Foreground Service and release mic on disconnect
         applicationScope.launch {

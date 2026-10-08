@@ -56,6 +56,7 @@ interface DriveMatePreferencesRepository {
     suspend fun updateDriverFatigueAlert(enabled: Boolean)
     suspend fun updatePreferredMusicApp(app: String)
     suspend fun updateVoiceAssistantEnabled(enabled: Boolean)
+    suspend fun updateVoiceAssistantLanguage(language: String)
     suspend fun updateHeyDriveMateEnabled(enabled: Boolean)
     suspend fun updateWakeWordSensitivity(sensitivity: Float)
     suspend fun updateDemoModeEnabled(enabled: Boolean)
@@ -105,6 +106,7 @@ class DriveMatePreferencesRepositoryImpl(
         val DRIVER_FATIGUE_ALERT = booleanPreferencesKey("driver_fatigue_alert_enabled")
         val PREFERRED_MUSIC_APP = stringPreferencesKey("preferred_music_app")
         val VOICE_ASSISTANT_ENABLED = booleanPreferencesKey("voice_assistant_enabled")
+        val VOICE_ASSISTANT_LANGUAGE = stringPreferencesKey("voice_assistant_language")
         val HEY_DRIVEMATE_ENABLED = booleanPreferencesKey("hey_drivemate_enabled")
         val WAKE_WORD_SENSITIVITY = floatPreferencesKey("wake_word_sensitivity")
         val DEMO_MODE_ENABLED = booleanPreferencesKey("demo_mode_enabled")
@@ -165,6 +167,7 @@ class DriveMatePreferencesRepositoryImpl(
                 driverFatigueAlertEnabled = preferences[PreferencesKeys.DRIVER_FATIGUE_ALERT] ?: true,
                 preferredMusicApp = preferences[PreferencesKeys.PREFERRED_MUSIC_APP] ?: "Spotify",
                 voiceAssistantEnabled = preferences[PreferencesKeys.VOICE_ASSISTANT_ENABLED] ?: true,
+                voiceAssistantLanguage = preferences[PreferencesKeys.VOICE_ASSISTANT_LANGUAGE] ?: "auto",
                 heyDriveMateEnabled = preferences[PreferencesKeys.HEY_DRIVEMATE_ENABLED] ?: false,
                 wakeWordSensitivity = preferences[PreferencesKeys.WAKE_WORD_SENSITIVITY] ?: 0.5f,
                 isDemoModeEnabled = preferences[PreferencesKeys.DEMO_MODE_ENABLED] ?: false
@@ -396,6 +399,12 @@ class DriveMatePreferencesRepositoryImpl(
     override suspend fun updateVoiceAssistantEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.VOICE_ASSISTANT_ENABLED] = enabled
+        }
+    }
+
+    override suspend fun updateVoiceAssistantLanguage(language: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.VOICE_ASSISTANT_LANGUAGE] = language.trim().lowercase()
         }
     }
 

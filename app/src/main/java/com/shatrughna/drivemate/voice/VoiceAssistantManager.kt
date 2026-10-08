@@ -10,6 +10,9 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import com.shatrughna.drivemate.car.CarConnectionManager
+import com.shatrughna.drivemate.core.telemetry.TelemetryAvailability
+import com.shatrughna.drivemate.core.telemetry.TelemetrySource
+import com.shatrughna.drivemate.core.telemetry.VehicleDataCoordinator
 import com.shatrughna.drivemate.data.preferences.DriveMatePreferencesRepository
 import com.shatrughna.drivemate.destination.DestinationManager
 import com.shatrughna.drivemate.driving.TripTracker
@@ -63,6 +66,9 @@ class VoiceAssistantManagerImpl(
     private val documentVaultRepository: com.shatrughna.drivemate.data.repository.DocumentVaultRepository? = null,
     private val maintenanceRepository: com.shatrughna.drivemate.data.repository.MaintenanceRepository? = null,
     private val expenseRepository: com.shatrughna.drivemate.data.repository.ExpenseRepository? = null,
+    private val vehicleDataCoordinator: VehicleDataCoordinator? = null,
+    private val responseProvider: VoiceResponseProvider = VoiceResponseProvider(),
+    private val questionFallback: VoiceQuestionFallback? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 ) : VoiceAssistantManager {
 
@@ -113,12 +119,26 @@ class VoiceAssistantManagerImpl(
                     audioCoordinator?.setError("Speech recognition not available")
                     return@withLock
                 }
+
+                val langPref = settings.voiceAssistantLanguage
+                val targetLocale = when (langPref.lowercase()) {
+                    "hi", "hindi" -> Locale("hi", "IN")
+                    "mr", "marathi" -> Locale("mr", "IN")
+                    "en", "english" -> Locale.forLanguageTag("en-IN")
+                    else -> Locale.getDefault()
+                }
+
                 val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, targetLocale)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, targetLocale.toLanguageTag())
+                    if (langPref == "auto") {
+                        putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf("en-IN", "hi-IN", "mr-IN"))
+                    }
                     putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                     putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
                 }
+
                 try {
                     _state.value = VoiceAssistantState.Listening
                     recognizer.startListening(intent)
@@ -134,12 +154,11 @@ class VoiceAssistantManagerImpl(
     override fun stopListening() {
         activeRecognitionGeneration = ++recognitionGeneration
         destroyRecognizer()
+        ttsManager.stop()
         scope.launch {
             audioCoordinator?.onCommandListeningFinished()
         }
-        if (_state.value is VoiceAssistantState.Listening) {
-            _state.value = VoiceAssistantState.Idle
-        }
+        _state.value = VoiceAssistantState.Idle
     }
 
     private fun destroyRecognizer() {
@@ -164,7 +183,8 @@ class VoiceAssistantManagerImpl(
     override fun processTextCommand(commandText: String) {
         scope.launch {
             audioCoordinator?.setProcessing()
-            executeCommand(parser.parse(commandText))
+            val command = parser.parse(commandText)
+            executeCommand(command, commandText)
         }
     }
 
@@ -209,7 +229,7 @@ class VoiceAssistantManagerImpl(
                     _state.value = VoiceAssistantState.Processing(recognizedText)
                     val command = parser.parse(recognizedText)
                     scope.launch {
-                        executeCommand(command)
+                        executeCommand(command, recognizedText)
                     }
                 } else {
                     _state.value = VoiceAssistantState.Idle
@@ -229,35 +249,103 @@ class VoiceAssistantManagerImpl(
         }
     }
 
-    private suspend fun executeCommand(command: VoiceCommand) {
+    private suspend fun executeCommand(command: VoiceCommand, rawInput: String = "") {
         val settings = preferencesRepository.settingsFlow.first()
+        val language = VoiceLanguageClassifier.resolveResponseLanguage(rawInput, settings.voiceAssistantLanguage)
 
         when (command) {
-            is VoiceCommand.PlayMusic -> {
-                val appToUse = command.appName ?: settings.preferredMusicApp
-                val androidAuto = carConnectionManager.connectionState.value.isAndroidAutoConnected
-                if (androidAuto) {
-                    respondWithVoice("Open $appToUse to continue. DriveMate cannot safely control that media app from this car screen.")
-                } else {
-                    val launched = dispatchMusicIntent(command.query, appToUse)
-                    respondWithVoice(
-                        if (launched) "Opened $appToUse for ${command.query}."
-                        else "I couldn't open $appToUse right now."
-                    )
-                }
+            is VoiceCommand.CheckSpeed -> {
+                val telemetry = vehicleDataCoordinator?.telemetry?.value
+                val speech = responseProvider.speed(
+                    language = language,
+                    speedKmh = telemetry?.speedKmh,
+                    source = telemetry?.speedSource ?: TelemetrySource.NONE,
+                    availability = telemetry?.speedAvailability ?: TelemetryAvailability.UNAVAILABLE
+                )
+                respondWithVoice(speech, language)
             }
 
-            is VoiceCommand.Navigate -> {
-                val androidAuto = carConnectionManager.connectionState.value.isAndroidAutoConnected
-                if (androidAuto) {
-                    respondWithVoice("Use your navigation app on the car screen to search for ${command.destination}.")
-                } else {
-                    val launched = destinationManager.launchNavigationQuery(context, command.destination)
-                    respondWithVoice(if (launched) "Navigation opened for ${command.destination}." else "Navigation is unavailable right now.")
-                }
+            is VoiceCommand.CheckOdometer -> {
+                val telemetry = vehicleDataCoordinator?.telemetry?.value
+                val odo = telemetry?.effectiveOdometerKm ?: settings.effectiveOdometerKm
+                val isAuth = telemetry?.isAuthoritativeOdometer ?: (settings.vehicleOdometerKm != null)
+                val speech = responseProvider.odometer(
+                    language = language,
+                    odometerKm = odo,
+                    isAuthoritative = isAuth
+                )
+                respondWithVoice(speech, language)
             }
 
-            VoiceCommand.CheckWeather -> {
+            is VoiceCommand.CheckFuel -> {
+                val telemetry = vehicleDataCoordinator?.telemetry?.value
+                val speech = responseProvider.fuel(
+                    language = language,
+                    fuelPercent = telemetry?.fuelLevelPercent,
+                    availability = telemetry?.fuelAvailability ?: TelemetryAvailability.UNAVAILABLE
+                )
+                respondWithVoice(speech, language)
+            }
+
+            is VoiceCommand.CheckRange -> {
+                val telemetry = vehicleDataCoordinator?.telemetry?.value
+                val speech = responseProvider.range(
+                    language = language,
+                    rangeKm = telemetry?.rangeRemainingKm,
+                    availability = telemetry?.rangeAvailability ?: TelemetryAvailability.UNAVAILABLE
+                )
+                respondWithVoice(speech, language)
+            }
+
+            is VoiceCommand.CheckVehicleStatus -> {
+                val telemetry = vehicleDataCoordinator?.telemetry?.value
+                val isConnected = carConnectionManager.connectionState.value.isAndroidAutoConnected || (telemetry?.androidAutoConnected == true)
+                val hasTelemetry = telemetry?.vehicleTelemetryConnected == true
+                val speech = responseProvider.vehicleStatus(
+                    language = language,
+                    isCarConnected = isConnected,
+                    hasTelemetry = hasTelemetry
+                )
+                respondWithVoice(speech, language)
+            }
+
+            is VoiceCommand.CheckAverageSpeed -> {
+                val stats = tripTracker.tripStats.value
+                val activeSecs = stats.activeMovingDurationSeconds.takeIf { it > 0 } ?: stats.activeTripDurationSeconds
+                val avgSpeed = if (activeSecs > 10 && stats.activeTripDistanceKm > 0.05f) {
+                    stats.activeTripDistanceKm / (activeSecs / 3600.0f)
+                } else null
+                val speech = responseProvider.averageSpeed(
+                    language = language,
+                    avgSpeedKmh = avgSpeed
+                )
+                respondWithVoice(speech, language)
+            }
+
+            is VoiceCommand.CheckTodayDriving -> {
+                val stats = tripTracker.tripStats.value
+                val speech = responseProvider.todayDriving(
+                    language = language,
+                    todayDistanceKm = stats.todayTotalDistanceKm,
+                    todayTripsCount = stats.todayTripsCount,
+                    todayDurationMinutes = stats.todayTotalDurationMinutes
+                )
+                respondWithVoice(speech, language)
+            }
+
+            is VoiceCommand.CheckTripStats -> {
+                val stats = tripTracker.tripStats.value
+                val speech = responseProvider.tripStats(
+                    language = language,
+                    activeDurationSeconds = stats.activeTripDurationSeconds,
+                    activeDistanceKm = stats.activeTripDistanceKm,
+                    todayDistanceKm = stats.todayTotalDistanceKm,
+                    todayTripsCount = stats.todayTripsCount
+                )
+                respondWithVoice(speech, language)
+            }
+
+            is VoiceCommand.CheckWeather -> {
                 val resolvedLoc = locationResolver?.resolveLocation(settings)
                     ?: WeatherLocationResolverImpl(null).resolveLocation(settings)
 
@@ -273,127 +361,238 @@ class VoiceAssistantManagerImpl(
                     }
                 } else null
 
-                val speech = if (weather != null && weather.isAvailable) {
-                    "It is currently ${weather.displayTemperature} and ${weather.conditionText.lowercase()} in ${weather.cityName}."
-                } else {
-                    "Weather is currently unavailable."
-                }
-                respondWithVoice(speech)
+                val speech = responseProvider.weather(
+                    language = language,
+                    tempText = weather?.displayTemperature,
+                    conditionText = weather?.conditionText?.lowercase(),
+                    cityName = weather?.cityName
+                )
+                respondWithVoice(speech, language)
             }
 
-            VoiceCommand.CheckTripStats -> {
-                val stats = tripTracker.tripStats.value
-                val activeMins = (stats.activeTripDurationSeconds / 60)
-                val speech = if (activeMins > 0 || stats.activeTripDistanceKm > 0) {
-                    "You have been driving for $activeMins minutes, covering ${String.format("%.1f", stats.activeTripDistanceKm)} kilometers."
-                } else {
-                    "Today's total driving distance is ${String.format("%.1f", stats.todayTotalDistanceKm)} kilometers across ${stats.todayTripsCount} trips."
-                }
-                respondWithVoice(speech)
+            is VoiceCommand.FindCar -> {
+                val address = if (settings.hasParkedLocation) {
+                    settings.lastParkedAddress ?: String.format(Locale.US, "%.4f, %.4f", settings.lastParkedLatitude ?: 0.0, settings.lastParkedLongitude ?: 0.0)
+                } else null
+                val speech = responseProvider.findCar(
+                    language = language,
+                    address = address
+                )
+                respondWithVoice(speech, language)
             }
 
-            VoiceCommand.CheckVehicleCare -> {
-                val speech = if (settings.effectiveOdometerKm != null && settings.serviceTargetConfigured) {
-                    val remainingKm = settings.remainingServiceKm?.toInt() ?: 0
-                    val odoText = String.format(Locale.US, "%,.1f", settings.effectiveOdometerKm)
-                    "Your vehicle has covered $odoText kilometers. Next service is due at ${settings.nextServiceKm} kilometers, which is in $remainingKm kilometers."
-                } else "Odometer data is unavailable, so service distance cannot be calculated."
-                respondWithVoice(speech)
+            is VoiceCommand.SaveParking -> {
+                val details = if (settings.hasParkedLocation) {
+                    String.format(Locale.US, "%.4f, %.4f", settings.lastParkedLatitude ?: 0.0, settings.lastParkedLongitude ?: 0.0)
+                } else null
+                val speech = responseProvider.saveParking(
+                    language = language,
+                    locationDetails = details
+                )
+                respondWithVoice(speech, language)
             }
 
-            VoiceCommand.FindCar -> {
-                val speech = if (settings.hasParkedLocation) {
-                    val address = settings.lastParkedAddress ?: "your last recorded parking coordinates"
-                    "Your vehicle is parked at $address."
-                } else {
-                    "No saved parking location found. DriveMate will automatically save your spot when you park."
-                }
-                respondWithVoice(speech)
+            is VoiceCommand.CheckMaintenance -> {
+                val speech = responseProvider.maintenance(
+                    language = language,
+                    remainingKm = settings.remainingServiceKm,
+                    nextServiceKm = settings.nextServiceKm,
+                    isConfigured = settings.serviceTargetConfigured
+                )
+                respondWithVoice(speech, language)
             }
 
-            VoiceCommand.SaveParking -> {
-                val speech = if (settings.hasParkedLocation) {
-                    "Your parking spot is saved at coordinates ${String.format(Locale.getDefault(), "%.4f, %.4f", settings.lastParkedLatitude ?: 0.0, settings.lastParkedLongitude ?: 0.0)}."
-                } else {
-                    "Parking spot saved at your current vehicle location."
-                }
-                respondWithVoice(speech)
-            }
-
-            is VoiceCommand.ControlClimate -> {
-                val actionResult = capabilityManager?.evaluateAction("climate_control", "climate control")
-                val speech = actionResult?.userMessage
-                    ?: "Your vehicle doesn't currently provide AC control access to DriveMate. Adjust temperature on the vehicle console."
-                respondWithVoice(speech)
-            }
-
-            is VoiceCommand.ViewCamera -> {
-                val actionResult = capabilityManager?.evaluateAction("camera_360", "${command.cameraType} camera")
-                val speech = actionResult?.userMessage
-                    ?: "OEM camera feeds are restricted to the vehicle infotainment screen while driving."
-                respondWithVoice(speech)
+            is VoiceCommand.CheckVehicleCare -> {
+                val speech = responseProvider.vehicleCare(
+                    language = language,
+                    effectiveOdoKm = settings.effectiveOdometerKm,
+                    remainingKm = settings.remainingServiceKm,
+                    nextServiceKm = settings.nextServiceKm,
+                    isConfigured = settings.serviceTargetConfigured
+                )
+                respondWithVoice(speech, language)
             }
 
             is VoiceCommand.CheckDocument -> {
-                if (carConnectionManager.connectionState.value.isAndroidAutoConnected) {
-                    respondWithVoice("Vehicle documents are available only on your phone for privacy.")
-                    return
-                }
+                val isAa = carConnectionManager.connectionState.value.isAndroidAutoConnected
                 val docs = documentVaultRepository?.documents?.value ?: emptyList()
-                val expiring = docs.filter { it.daysUntilExpiry()?.let { d -> d in 0..30 } == true }
-                val speech = if (expiring.isNotEmpty()) {
-                    val first = expiring.first()
-                    "Attention: Your ${first.title} expires in ${first.daysUntilExpiry()} days. Please renew soon."
-                } else if (docs.isNotEmpty()) {
-                    "All your ${docs.size} stored vehicle documents are currently valid."
-                } else {
-                    "Your vehicle documents are saved in the phone-only document vault."
-                }
-                respondWithVoice(speech)
-            }
-
-            VoiceCommand.CheckMaintenance -> {
-                val speech = if (settings.remainingServiceKm != null && settings.serviceTargetConfigured) {
-                    "Next periodic service is due in ${settings.remainingServiceKm!!.toInt()} kilometers at ${settings.nextServiceKm} kilometers."
-                } else "Service interval is unavailable until an odometer and service target are configured."
-                respondWithVoice(speech)
+                val expiring = docs.firstOrNull { it.daysUntilExpiry()?.let { d -> d in 0..30 } == true }
+                val speech = responseProvider.documents(
+                    language = language,
+                    isAndroidAuto = isAa,
+                    expiringTitle = expiring?.title,
+                    daysLeft = expiring?.daysUntilExpiry(),
+                    totalDocsCount = docs.size
+                )
+                respondWithVoice(speech, language)
             }
 
             is VoiceCommand.CheckExpenses -> {
                 val summary = settings.odometerKm?.let { expenseRepository?.getSummary(it) }
-                val speech = if (summary != null) {
-                    "You have spent ${summary.currentMonthSpent.toInt()} rupees this month. Average running cost is ${String.format(Locale.getDefault(), "%.1f", summary.costPerKm)} rupees per kilometer."
+                val speech = responseProvider.expenses(
+                    language = language,
+                    currentMonthSpent = summary?.currentMonthSpent,
+                    costPerKm = summary?.costPerKm
+                )
+                respondWithVoice(speech, language)
+            }
+
+            is VoiceCommand.PlayMusic -> {
+                val appToUse = command.appName ?: settings.preferredMusicApp
+                val androidAuto = carConnectionManager.connectionState.value.isAndroidAutoConnected
+                if (androidAuto) {
+                    val speech = when (language) {
+                        VoiceLanguage.HINDI -> "आगे बढ़ने के लिए $appToUse खोलें। ड्राइवमेट इस कार स्क्रीन से मीडिया नियंत्रित नहीं कर सकता।"
+                        VoiceLanguage.MARATHI -> "पुढे सुरू ठेवण्यासाठी $appToUse उघडा. ड्राईव्हमेट या कार स्क्रीनवरून मीडिया नियंत्रित करू शकत नाही."
+                        else -> "Open $appToUse to continue. DriveMate cannot safely control that media app from this car screen."
+                    }
+                    respondWithVoice(speech, language)
                 } else {
-                    "Vehicle running costs and fuel logs can be viewed in your Expense Manager."
+                    val launched = dispatchMusicIntent(command.query, appToUse)
+                    val speech = if (launched) {
+                        when (language) {
+                            VoiceLanguage.HINDI -> "${command.query} के लिए $appToUse खोला गया।"
+                            VoiceLanguage.MARATHI -> "${command.query} साठी $appToUse उघडले."
+                            else -> "Opened $appToUse for ${command.query}."
+                        }
+                    } else {
+                        when (language) {
+                            VoiceLanguage.HINDI -> "मैं अभी $appToUse नहीं खोल सका।"
+                            VoiceLanguage.MARATHI -> "मी आता $appToUse उघडू शकलो नाही."
+                            else -> "I couldn't open $appToUse right now."
+                        }
+                    }
+                    respondWithVoice(speech, language)
                 }
-                respondWithVoice(speech)
+            }
+
+            is VoiceCommand.Navigate -> {
+                val androidAuto = carConnectionManager.connectionState.value.isAndroidAutoConnected
+                if (androidAuto) {
+                    val speech = when (language) {
+                        VoiceLanguage.HINDI -> "कार स्क्रीन पर अपने नेविगेशन ऐप से ${command.destination} सर्च करें।"
+                        VoiceLanguage.MARATHI -> "कार स्क्रीनवरील नेव्हिगेशन ॲपमध्ये ${command.destination} शोधा."
+                        else -> "Use your navigation app on the car screen to search for ${command.destination}."
+                    }
+                    respondWithVoice(speech, language)
+                } else {
+                    val launched = destinationManager.launchNavigationQuery(context, command.destination)
+                    val speech = if (launched) {
+                        when (language) {
+                            VoiceLanguage.HINDI -> "${command.destination} के लिए नेविगेशन शुरू किया गया।"
+                            VoiceLanguage.MARATHI -> "${command.destination} साठी नेव्हिगेशन सुरू केले."
+                            else -> "Navigation opened for ${command.destination}."
+                        }
+                    } else {
+                        when (language) {
+                            VoiceLanguage.HINDI -> "नेविगेशन अभी उपलब्ध नहीं है।"
+                            VoiceLanguage.MARATHI -> "नेव्हिगेशन सध्या उपलब्ध नाही."
+                            else -> "Navigation is unavailable right now."
+                        }
+                    }
+                    respondWithVoice(speech, language)
+                }
+            }
+
+            is VoiceCommand.ControlClimate -> {
+                val actionResult = capabilityManager?.evaluateAction("climate_control", "climate control")
+                val speech = actionResult?.userMessage ?: when (language) {
+                    VoiceLanguage.HINDI -> "आपका वाहन अभी ड्राइवमेट को एसी नियंत्रण की अनुमति नहीं देता। कृपया वाहन कंसोल का उपयोग करें।"
+                    VoiceLanguage.MARATHI -> "तुमचे वाहन सध्या ड्राईव्हमेटला एसी नियंत्रणाची परवानगी देत नाही. कृपया वाहन कन्सोल वापरा."
+                    else -> "Your vehicle doesn't currently provide AC control access to DriveMate. Adjust temperature on the vehicle console."
+                }
+                respondWithVoice(speech, language)
+            }
+
+            is VoiceCommand.ViewCamera -> {
+                val actionResult = capabilityManager?.evaluateAction("camera_360", "${command.cameraType} camera")
+                val speech = actionResult?.userMessage ?: when (language) {
+                    VoiceLanguage.HINDI -> "सुरक्षा के लिए कैमरा फीड वाहन स्क्रीन तक सीमित है।"
+                    VoiceLanguage.MARATHI -> "ड्रायव्हिंग सुरक्षेसाठी कॅमेरा फीड इन्फोटेनमेंट स्क्रीनपुरती मर्यादित आहे."
+                    else -> "OEM camera feeds are restricted to the vehicle infotainment screen while driving."
+                }
+                respondWithVoice(speech, language)
             }
 
             is VoiceCommand.WatchVideo -> {
                 val isCarConnected = carConnectionManager.connectionState.value.isVerifiedCarSession
                 if (isCarConnected) {
-                    respondWithVoice("For driving safety, video is unavailable on the car screen. Open a compatible media app for audio.")
+                    val speech = when (language) {
+                        VoiceLanguage.HINDI -> "ड्राइविंग सुरक्षा के लिए कार स्क्रीन पर वीडियो उपलब्ध नहीं है।"
+                        VoiceLanguage.MARATHI -> "ड्रायव्हिंग सुरक्षेसाठी कार स्क्रीनवर व्हिडिओ उपलब्ध नाही."
+                        else -> "For driving safety, video is unavailable on the car screen. Open a compatible media app for audio."
+                    }
+                    respondWithVoice(speech, language)
                 } else {
                     val launched = dispatchYouTubeIntent(command.query)
-                    respondWithVoice(
-                        if (launched) "Opened YouTube for ${command.query} on your phone."
-                        else "I couldn't open YouTube right now."
-                    )
+                    val speech = if (launched) {
+                        when (language) {
+                            VoiceLanguage.HINDI -> "फोन पर ${command.query} के लिए यूट्यूब खोला गया।"
+                            VoiceLanguage.MARATHI -> "फोनवर ${command.query} साठी यूट्यूब उघडले."
+                            else -> "Opened YouTube for ${command.query} on your phone."
+                        }
+                    } else {
+                        when (language) {
+                            VoiceLanguage.HINDI -> "यूट्यूब अभी नहीं खोला जा सका।"
+                            VoiceLanguage.MARATHI -> "यूट्यूब आता उघडता आले नाही."
+                            else -> "I couldn't open YouTube right now."
+                        }
+                    }
+                    respondWithVoice(speech, language)
                 }
             }
 
+            is VoiceCommand.Help -> {
+                respondWithVoice(responseProvider.help(language), language)
+            }
+
+            is VoiceCommand.AboutAssistant -> {
+                respondWithVoice(responseProvider.about(language), language)
+            }
+
+            is VoiceCommand.AssistantStatus -> {
+                respondWithVoice(responseProvider.assistantStatus(language), language)
+            }
+
+            is VoiceCommand.Greeting -> {
+                respondWithVoice(responseProvider.greeting(language), language)
+            }
+
+            is VoiceCommand.ThankYou -> {
+                respondWithVoice(responseProvider.thankYou(language), language)
+            }
+
+            is VoiceCommand.StopAssistant -> {
+                ttsManager.stop()
+                audioCoordinator?.releaseAll()
+                _state.value = VoiceAssistantState.Idle
+            }
+
             is VoiceCommand.Unknown -> {
-                val speech = "I didn't quite catch that. You can ask me to play a song, navigate, check the weather, or check trip status."
-                respondWithVoice(speech)
+                val fallbackResponse = questionFallback?.answer(command.rawQuery, language)
+                val speech = fallbackResponse ?: responseProvider.unknown(language)
+                respondWithVoice(speech, language)
             }
         }
     }
 
-    private suspend fun respondWithVoice(speechText: String) {
+    private suspend fun respondWithVoice(speechText: String, language: VoiceLanguage) {
         _state.value = VoiceAssistantState.Responding(speechText)
         try {
+            val targetLocale = language.locale
+            val isSupported = if (language == VoiceLanguage.MARATHI || language == VoiceLanguage.HINDI) {
+                ttsManager.isLanguageAvailable(targetLocale)
+            } else true
+
+            val (finalSpeech, finalLocale) = if (!isSupported) {
+                AppLogger.w(AppLogger.Tag.TTS, "TTS voice not available on device for ${language.displayName}, falling back to English")
+                "${responseProvider.unsupportedTtsFallback(language)} $speechText" to Locale.forLanguageTag("en-IN")
+            } else {
+                speechText to targetLocale
+            }
+
             withContext(Dispatchers.Default) {
-                ttsManager.speak(speechText)
+                ttsManager.speak(finalSpeech, finalLocale)
             }
         } finally {
             audioCoordinator?.releaseAll()

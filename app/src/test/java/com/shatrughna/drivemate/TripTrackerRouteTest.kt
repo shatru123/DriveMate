@@ -97,10 +97,11 @@ class TripTrackerRouteTest {
         override val isSpeaking: StateFlow<Boolean> = MutableStateFlow(false)
 
         override suspend fun initialize(): Result<Unit> = Result.success(Unit)
-        override suspend fun speak(text: String): Result<Unit> {
+        override suspend fun speak(text: String, locale: Locale?): Result<Unit> {
             spokenList.add(text)
             return Result.success(Unit)
         }
+        override fun isLanguageAvailable(locale: Locale): Boolean = true
         override fun stop() {}
         override fun shutdown() {}
         override fun setSpeechRate(rate: Float) {}
@@ -154,6 +155,7 @@ class TripTrackerRouteTest {
         override suspend fun updateDriverFatigueAlert(enabled: Boolean) {}
         override suspend fun updatePreferredMusicApp(app: String) {}
         override suspend fun updateVoiceAssistantEnabled(enabled: Boolean) {}
+        override suspend fun updateVoiceAssistantLanguage(language: String) {}
         override suspend fun updateHeyDriveMateEnabled(enabled: Boolean) {}
         override suspend fun updateWakeWordSensitivity(sensitivity: Float) {}
         override suspend fun updateDemoModeEnabled(enabled: Boolean) {}
