@@ -53,10 +53,12 @@ import com.shatrughna.drivemate.core.capabilities.CapabilityStatus
 import com.shatrughna.drivemate.core.capabilities.VehicleCapabilitiesState
 import com.shatrughna.drivemate.core.insights.AiCarInsight
 import com.shatrughna.drivemate.core.insights.InsightPriority
+import com.shatrughna.drivemate.core.telemetry.VehicleTelemetry
 import com.shatrughna.drivemate.data.model.DriveMateSettings
 import com.shatrughna.drivemate.ui.components.DriveMateCard
 import com.shatrughna.drivemate.ui.components.DriveMateSectionHeader
 import com.shatrughna.drivemate.ui.components.DriveMateVehicleIdentityPanel
+import com.shatrughna.drivemate.ui.components.DriveMateVehicleTelemetryPanel
 import com.shatrughna.drivemate.ui.components.rememberPressScale
 import com.shatrughna.drivemate.ui.theme.DarkBackground
 import com.shatrughna.drivemate.ui.theme.DarkBorder
@@ -78,6 +80,7 @@ fun MyCarScreen(
     documentCount: Int,
     nextServiceDueKm: Double?,
     totalExpenses: Double,
+    telemetry: VehicleTelemetry,
     onNavigateToDocuments: () -> Unit,
     onNavigateToMaintenance: () -> Unit,
     onNavigateToExpenses: () -> Unit,
@@ -145,7 +148,10 @@ fun MyCarScreen(
             // 1. Truthful vehicle identity surface
             DriveMateVehicleIdentityPanel(settings = settings)
 
-            // 2. Active AI Car Insight Banner (if present)
+            // 2. Full telemetry surface with explicit source and availability states
+            DriveMateVehicleTelemetryPanel(telemetry = telemetry)
+
+            // 3. Active AI Car Insight Banner (if present)
             if (topInsight != null) {
                 val insightColor = when (topInsight.priority) {
                     InsightPriority.HIGH -> NexonAmberAccent
@@ -193,7 +199,7 @@ fun MyCarScreen(
                 }
             }
 
-            // 3. Central Subsystems Grid (2 columns)
+            // 4. Central Subsystems Grid (2 columns)
             DriveMateSectionHeader(title = "VEHICLE OPERATING SYSTEM")
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -237,7 +243,7 @@ fun MyCarScreen(
 
                     HubActionTile(
                         title = "Climate (HVAC)",
-                        subtitle = "22°C • Companion",
+                        subtitle = "Open climate controls",
                         icon = Icons.Default.AcUnit,
                         accentColor = NexonCyanPrimary,
                         onClick = onNavigateToClimate,
@@ -280,7 +286,7 @@ fun MyCarScreen(
                 )
             }
 
-            // 4. Vehicle Capability Diagnostics & Transparency
+            // 5. Vehicle Capability Diagnostics & Transparency
             DriveMateSectionHeader(title = "HARDWARE CAPABILITY MATRIX")
 
             DriveMateCard {

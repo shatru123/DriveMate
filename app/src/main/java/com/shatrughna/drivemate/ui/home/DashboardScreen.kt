@@ -84,6 +84,7 @@ fun DashboardScreen(
     onNavigateToAnalytics: () -> Unit = {},
     onNavigateToParking: () -> Unit = {},
     onNavigateToDiagnostics: () -> Unit = {},
+    onNavigateToAssistant: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -263,7 +264,7 @@ fun DashboardScreen(
                     },
                     onVehicle = onNavigateToMyCar,
                     onTrips = onNavigateToAnalytics,
-                    onAssistant = { launchVoiceAssistant() }
+                    onAssistant = onNavigateToAssistant
                 )
 
                 // 3. Navigation stays available without overwhelming the cockpit.
