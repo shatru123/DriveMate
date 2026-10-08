@@ -40,15 +40,15 @@ class DestinationManagerImpl(
         val suggestions = mutableListOf<Destination>()
 
         // 1. Vehicle Care context
-        val remainingServiceKm = settings.nextServiceKm - settings.odometerKm
-        if (remainingServiceKm <= 1000) {
+        val remainingServiceKm = settings.remainingServiceKm
+        if (remainingServiceKm != null && remainingServiceKm <= 1000) {
             suggestions.add(
                 Destination(
-                    id = "service_tata",
-                    name = "Tata Service Center",
-                    address = "Authorized Tata Motors Workshop",
+                    id = "service_center",
+                    name = "Vehicle Service Center",
+                    address = "Nearby service workshop",
                     source = DestinationSource.SUGGESTED,
-                    query = "Tata Motors authorized service center",
+                    query = "vehicle service center near me",
                     category = DestinationCategory.SERVICE_CENTER
                 )
             )
@@ -154,7 +154,7 @@ class DestinationManagerImpl(
                 try {
                     val navIntent = Intent(CarContext.ACTION_NAVIGATE, Uri.parse("geo:0,0?q=$query"))
                     context.startCarApp(navIntent)
-                    AppLogger.i(AppLogger.TAG_ANDROID_AUTO, "Launched CarContext startCarApp navigation for $destinationQuery")
+                    AppLogger.i(AppLogger.TAG_ANDROID_AUTO, "Launched CarContext navigation request")
                     recordQueryToRecents(destinationQuery)
                     return true
                 } catch (e: Exception) {
@@ -170,7 +170,7 @@ class DestinationManagerImpl(
 
             if (mapIntent.resolveActivity(context.packageManager) != null) {
                 context.startActivity(mapIntent)
-                AppLogger.i(AppLogger.Tag.APP, "Launched Google Navigation for $destinationQuery")
+                AppLogger.i(AppLogger.Tag.APP, "Launched Google Navigation")
                 recordQueryToRecents(destinationQuery)
                 return true
             } else {
@@ -179,7 +179,7 @@ class DestinationManagerImpl(
                 }
                 if (geoIntent.resolveActivity(context.packageManager) != null) {
                     context.startActivity(geoIntent)
-                    AppLogger.i(AppLogger.Tag.APP, "Launched Geo Intent for $destinationQuery")
+                    AppLogger.i(AppLogger.Tag.APP, "Launched Geo navigation intent")
                     recordQueryToRecents(destinationQuery)
                     return true
                 } else {
@@ -191,13 +191,13 @@ class DestinationManagerImpl(
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
                     context.startActivity(webIntent)
-                    AppLogger.i(AppLogger.Tag.APP, "Launched Web Maps URL fallback for $destinationQuery")
+                    AppLogger.i(AppLogger.Tag.APP, "Launched Web Maps URL fallback")
                     recordQueryToRecents(destinationQuery)
                     return true
                 }
             }
         } catch (e: Exception) {
-            AppLogger.e(AppLogger.Tag.APP, "Failed to launch navigation for $destinationQuery", e)
+            AppLogger.e(AppLogger.Tag.APP, "Failed to launch navigation request", e)
             return false
         }
     }

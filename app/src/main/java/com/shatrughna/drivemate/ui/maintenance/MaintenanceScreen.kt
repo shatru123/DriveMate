@@ -88,10 +88,11 @@ fun MaintenanceScreen(
 ) {
     var showAddDialog by remember { mutableStateOf(false) }
 
-    val kmRemaining = schedule.kmRemaining(currentOdometerKm)
-    val daysRemaining = schedule.daysRemaining()
-    val urgency = schedule.urgency(currentOdometerKm)
-    val progress = schedule.kmProgress(currentOdometerKm)
+    val hasOdometer = currentOdometerKm.isFinite() && schedule.isConfigured
+    val kmRemaining = if (hasOdometer) schedule.kmRemaining(currentOdometerKm) else null
+    val daysRemaining = if (hasOdometer) schedule.daysRemaining() else null
+    val urgency = if (hasOdometer) schedule.urgency(currentOdometerKm) else null
+    val progress = if (hasOdometer) schedule.kmProgress(currentOdometerKm) else null
     val totalSpend = records.sumOf { it.cost }
 
     val urgencyColor = when (urgency) {
@@ -99,6 +100,7 @@ fun MaintenanceScreen(
         ServiceUrgency.DUE_SOON -> NexonCyanPrimary
         ServiceUrgency.DUE_NOW -> NexonAmberAccent
         ServiceUrgency.OVERDUE -> NexonRedAccent
+        null -> TextMuted
     }
 
     val urgencyText = when (urgency) {
@@ -106,6 +108,7 @@ fun MaintenanceScreen(
         ServiceUrgency.DUE_SOON -> "Due Soon"
         ServiceUrgency.DUE_NOW -> "Service Due Now"
         ServiceUrgency.OVERDUE -> "Service Overdue"
+        null -> "Service interval unavailable"
     }
 
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
@@ -236,7 +239,7 @@ fun MaintenanceScreen(
                         // Progress bar with indicator
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             LinearProgressIndicator(
-                                progress = { progress },
+                                progress = { progress ?: 0f },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(8.dp)
@@ -250,7 +253,7 @@ fun MaintenanceScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = "${(progress * 100).toInt()}% of ${schedule.intervalKm} km interval",
+                                    text = progress?.let { "${(it * 100).toInt()}% of ${schedule.intervalKm} km interval" } ?: "Configure an odometer to track service distance",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = TextMuted
                                 )
@@ -269,13 +272,13 @@ fun MaintenanceScreen(
                         ) {
                             DriveMateMetric(
                                 label = "DISTANCE LEFT",
-                                value = "${kmRemaining.toInt()}",
+                                value = kmRemaining?.let { "${it.toInt()}" } ?: "Unavailable",
                                 unit = "km",
                                 modifier = Modifier.weight(1f)
                             )
                             DriveMateMetric(
                                 label = "TIME LEFT",
-                                value = "$daysRemaining",
+                                value = daysRemaining?.toString() ?: "Unavailable",
                                 unit = "days",
                                 modifier = Modifier.weight(1f)
                             )
@@ -327,7 +330,7 @@ fun MaintenanceScreen(
                                 color = TextPrimary
                             )
                             Text(
-                                text = "Track periodic oil changes, brake pads, tire rotations, and scheduled workshop visits for your Tata Nexon. Keep your vehicle warranty intact and history verified.",
+                                text = "Track periodic service, brake work, tire rotations, and workshop visits. Keep your vehicle history verified.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = TextSecondary,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -467,8 +470,8 @@ private fun AddServiceRecordDialog(
     onSave: (ServiceRecord) -> Unit
 ) {
     var title by remember { mutableStateOf("") }
-    var odometerStr by remember { mutableStateOf(currentOdometerKm.toInt().toString()) }
-    var workshopName by remember { mutableStateOf("Tata Authorized Service Center") }
+    var odometerStr by remember { mutableStateOf(currentOdometerKm.takeIf { it.isFinite() }?.toInt()?.toString().orEmpty()) }
+    var workshopName by remember { mutableStateOf("") }
     var costStr by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf(ServiceType.PERIODIC_SERVICE) }
@@ -563,20 +566,21 @@ private fun AddServiceRecordDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    if (title.isNotBlank()) {
-                        val odo = odometerStr.toDoubleOrNull() ?: currentOdometerKm
+                    val odo = odometerStr.toDoubleOrNull()
+                    if (title.isNotBlank() && odo != null && odo >= 0.0) {
                         val cost = costStr.toDoubleOrNull() ?: 0.0
                         val record = ServiceRecord(
                             title = title.trim(),
                             type = selectedType,
                             odometerKm = odo,
                             cost = cost,
-                            workshopName = workshopName.trim(),
+                            workshopName = workshopName.trim().ifBlank { "Service provider not specified" },
                             notes = notes.trim()
                         )
                         onSave(record)
                     }
                 },
+                enabled = title.isNotBlank() && odometerStr.toDoubleOrNull()?.let { it >= 0.0 } == true,
                 colors = ButtonDefaults.buttonColors(containerColor = NexonCyanPrimary, contentColor = Color.Black)
             ) {
                 Text("Save Service Log", fontWeight = FontWeight.Bold)

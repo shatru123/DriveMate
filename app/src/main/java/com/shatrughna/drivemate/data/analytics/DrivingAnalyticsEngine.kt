@@ -27,9 +27,9 @@ object DrivingAnalyticsEngine {
                 totalDistanceKm = 0f,
                 totalTrips = 0,
                 totalDurationMinutes = 0L,
-                avgSpeedKmh = 0f,
-                estimatedFuelConsumedLiters = 0f,
-                avgEcoScore = 0,
+                avgSpeedKmh = null,
+                estimatedFuelConsumedLiters = null,
+                avgEcoScore = null,
                 weeklyMetrics = emptyList()
             )
         }
@@ -37,15 +37,14 @@ object DrivingAnalyticsEngine {
         val totalDist = thisMonthTrips.sumOf { it.distanceKm.toDouble() }.toFloat()
         val totalMinutes = thisMonthTrips.sumOf { it.durationMinutes }
         // Distance-weighted average speed
-        val avgSpeed = if (totalDist > 0f) {
-            (thisMonthTrips.sumOf { it.distanceKm.toDouble() * it.avgSpeedKmh.toDouble() } / totalDist).toFloat()
-        } else {
-            (thisMonthTrips.sumOf { it.avgSpeedKmh.toDouble() } / thisMonthTrips.size).toFloat()
-        }
-        val fuelLiters = thisMonthTrips.sumOf { it.fuelConsumedLiters.toDouble() }.toFloat()
-        val avgEco = if (thisMonthTrips.isNotEmpty()) {
-            (thisMonthTrips.sumOf { it.ecoScore } / thisMonthTrips.size)
-        } else 90
+        val measuredSpeedTrips = thisMonthTrips.filter { it.avgSpeedKmh != null }
+        val avgSpeed = if (measuredSpeedTrips.isNotEmpty()) {
+            val measuredDistance = measuredSpeedTrips.sumOf { it.distanceKm.toDouble() }
+            if (measuredDistance > 0.0) (measuredSpeedTrips.sumOf { it.distanceKm.toDouble() * it.avgSpeedKmh!!.toDouble() } / measuredDistance).toFloat()
+            else measuredSpeedTrips.mapNotNull { it.avgSpeedKmh }.average().toFloat()
+        } else null
+        val fuelLiters = thisMonthTrips.mapNotNull { it.fuelConsumedLiters }.takeIf { it.isNotEmpty() }?.sum()
+        val avgEco = thisMonthTrips.mapNotNull { it.ecoScore }.takeIf { it.isNotEmpty() }?.average()?.toInt()
 
         // Group into 4 weeks
         val weekBuckets = Array(4) { 0f }

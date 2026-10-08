@@ -17,7 +17,7 @@ class AndroidAutoTpmsProvider : TpmsProvider {
             rearLeft = TpmsWheelPressure(pressurePsi = null, status = TpmsStatus.UNAVAILABLE),
             rearRight = TpmsWheelPressure(pressurePsi = null, status = TpmsStatus.UNAVAILABLE),
             availability = TelemetryAvailability.NOT_SUPPORTED,
-            notice = "Direct wheel pressures are not exposed through Android Auto on the Tata Nexon. Check your instrument cluster or add an OBD2 / BLE TPMS sensor."
+            notice = "Direct wheel pressures are not exposed through Android Auto. Check the vehicle instrument cluster."
         )
     )
 

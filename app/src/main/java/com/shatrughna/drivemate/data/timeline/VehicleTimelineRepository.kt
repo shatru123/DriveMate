@@ -50,7 +50,7 @@ class VehicleTimelineRepositoryImpl(
                             subtitle = "${trip.formattedDuration} • Avg ${trip.formattedAvgSpeed}",
                             timestampMillis = trip.startTimeMillis,
                             metricText = String.format("+%.1f km", trip.distanceKm),
-                            details = "Eco Score: ${trip.ecoScore}/100"
+                            details = trip.ecoScore?.let { "Eco Score: $it/100" } ?: "Eco score unavailable"
                         )
                     )
                 }

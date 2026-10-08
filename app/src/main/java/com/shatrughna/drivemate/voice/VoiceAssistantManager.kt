@@ -27,6 +27,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
@@ -68,62 +70,80 @@ class VoiceAssistantManagerImpl(
     override val state: StateFlow<VoiceAssistantState> = _state.asStateFlow()
 
     private var speechRecognizer: SpeechRecognizer? = null
+    private val recognitionMutex = Mutex()
+    private var recognitionGeneration = 0L
+    private var activeRecognitionGeneration = 0L
 
-    private fun getOrCreateRecognizer(): SpeechRecognizer? {
+    private fun createRecognizer(generation: Long): SpeechRecognizer? {
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             AppLogger.w(AppLogger.Tag.APP, "Speech recognition is not available on this device.")
             _state.value = VoiceAssistantState.Error("Speech recognition not available")
             return null
         }
-        if (speechRecognizer == null) {
-            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
-                setRecognitionListener(createListener())
-            }
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
+            setRecognitionListener(createListener(generation))
         }
         return speechRecognizer
     }
 
     override fun startListening() {
         scope.launch {
-            val settings = preferencesRepository.settingsFlow.first()
-            if (!settings.voiceAssistantEnabled) {
-                AppLogger.d(AppLogger.Tag.APP, "Voice Assistant is disabled in settings.")
-                _state.value = VoiceAssistantState.Error("Voice Assistant is disabled")
-                return@launch
-            }
+            recognitionMutex.withLock {
+                if (_state.value is VoiceAssistantState.Listening ||
+                    _state.value is VoiceAssistantState.Processing ||
+                    _state.value is VoiceAssistantState.Responding
+                ) return@withLock
+                val generation = ++recognitionGeneration
+                activeRecognitionGeneration = generation
+                val settings = preferencesRepository.settingsFlow.first()
+                if (!settings.voiceAssistantEnabled) {
+                    AppLogger.d(AppLogger.Tag.APP, "Voice Assistant is disabled in settings.")
+                    _state.value = VoiceAssistantState.Error("Voice Assistant is disabled")
+                    audioCoordinator?.setError("Voice Assistant is disabled")
+                    return@withLock
+                }
 
-            if (audioCoordinator != null && !audioCoordinator.requestCommandListening()) {
-                AppLogger.w(AppLogger.Tag.APP, "AudioCoordinator denied microphone for VoiceAssistant.")
-                return@launch
-            }
+                if (audioCoordinator != null && !audioCoordinator.requestCommandListening()) {
+                    AppLogger.w(AppLogger.Tag.APP, "AudioCoordinator denied microphone for VoiceAssistant.")
+                    return@withLock
+                }
 
-            val recognizer = getOrCreateRecognizer() ?: return@launch
-            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            }
-            try {
-                _state.value = VoiceAssistantState.Listening
-                recognizer.startListening(intent)
-            } catch (e: Exception) {
-                AppLogger.e(AppLogger.Tag.APP, "Failed to start speech recognizer", e)
-                audioCoordinator?.onCommandListeningFinished()
-                _state.value = VoiceAssistantState.Error("Failed to listen: ${e.message}")
+                val recognizer = createRecognizer(generation)
+                if (recognizer == null) {
+                    audioCoordinator?.setError("Speech recognition not available")
+                    return@withLock
+                }
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                }
+                try {
+                    _state.value = VoiceAssistantState.Listening
+                    recognizer.startListening(intent)
+                } catch (e: Exception) {
+                    AppLogger.e(AppLogger.Tag.APP, "Failed to start speech recognizer", e)
+                    audioCoordinator?.setError("Voice input is unavailable")
+                    _state.value = VoiceAssistantState.Error("Voice input is unavailable. Try again.")
+                }
             }
         }
     }
 
     override fun stopListening() {
+        activeRecognitionGeneration = ++recognitionGeneration
         try {
             speechRecognizer?.stopListening()
+            speechRecognizer?.cancel()
+            speechRecognizer?.destroy()
         } catch (e: Exception) {
             AppLogger.w(AppLogger.Tag.APP, "Error stopping SpeechRecognizer: ${e.message}")
         }
         scope.launch {
             audioCoordinator?.onCommandListeningFinished()
         }
+        speechRecognizer = null
         if (_state.value is VoiceAssistantState.Listening) {
             _state.value = VoiceAssistantState.Idle
         }
@@ -152,13 +172,15 @@ class VoiceAssistantManagerImpl(
         }
     }
 
-    private fun createListener(): RecognitionListener {
+    private fun createListener(generation: Long): RecognitionListener {
+        fun isCurrent(): Boolean = generation == activeRecognitionGeneration
         return object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) {}
             override fun onBeginningOfSpeech() {}
             override fun onRmsChanged(rmsdB: Float) {}
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() {
+                if (!isCurrent()) return
                 if (_state.value is VoiceAssistantState.Listening) {
                     audioCoordinator?.setProcessing()
                     _state.value = VoiceAssistantState.Processing("Analyzing...")
@@ -166,20 +188,20 @@ class VoiceAssistantManagerImpl(
             }
 
             override fun onError(error: Int) {
+                if (!isCurrent()) return
                 val errorMsg = when (error) {
                     SpeechRecognizer.ERROR_NO_MATCH -> "No speech recognized. Please try again."
                     SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Listening timed out."
                     SpeechRecognizer.ERROR_AUDIO -> "Audio recording error."
-                    else -> "Speech recognition error ($error)"
+                    else -> "Speech recognition failed. Please try again."
                 }
                 AppLogger.w(AppLogger.Tag.APP, "Speech recognizer error: $errorMsg")
-                scope.launch {
-                    audioCoordinator?.onCommandListeningFinished()
-                }
+                audioCoordinator?.setError(errorMsg)
                 _state.value = VoiceAssistantState.Error(errorMsg)
             }
 
             override fun onResults(results: Bundle?) {
+                if (!isCurrent()) return
                 scope.launch {
                     audioCoordinator?.onCommandListeningFinished()
                 }
@@ -197,6 +219,7 @@ class VoiceAssistantManagerImpl(
             }
 
             override fun onPartialResults(partialResults: Bundle?) {
+                if (!isCurrent()) return
                 val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 val partial = matches?.firstOrNull()
                 if (!partial.isNullOrBlank()) {
@@ -214,15 +237,26 @@ class VoiceAssistantManagerImpl(
         when (command) {
             is VoiceCommand.PlayMusic -> {
                 val appToUse = command.appName ?: settings.preferredMusicApp
-                val speech = "Playing ${command.query} on $appToUse."
-                respondWithVoice(speech)
-                dispatchMusicIntent(command.query, appToUse)
+                val androidAuto = carConnectionManager.connectionState.value.isAndroidAutoConnected
+                if (androidAuto) {
+                    respondWithVoice("Open $appToUse to continue. DriveMate cannot safely control that media app from this car screen.")
+                } else {
+                    val launched = dispatchMusicIntent(command.query, appToUse)
+                    respondWithVoice(
+                        if (launched) "Opened $appToUse for ${command.query}."
+                        else "I couldn't open $appToUse right now."
+                    )
+                }
             }
 
             is VoiceCommand.Navigate -> {
-                val speech = "Starting navigation to ${command.destination}."
-                respondWithVoice(speech)
-                destinationManager.launchNavigationQuery(context, command.destination)
+                val androidAuto = carConnectionManager.connectionState.value.isAndroidAutoConnected
+                if (androidAuto) {
+                    respondWithVoice("Use your navigation app on the car screen to search for ${command.destination}.")
+                } else {
+                    val launched = destinationManager.launchNavigationQuery(context, command.destination)
+                    respondWithVoice(if (launched) "Navigation opened for ${command.destination}." else "Navigation is unavailable right now.")
+                }
             }
 
             VoiceCommand.CheckWeather -> {
@@ -261,16 +295,18 @@ class VoiceAssistantManagerImpl(
             }
 
             VoiceCommand.CheckVehicleCare -> {
-                val remainingKm = settings.remainingServiceKm.toInt()
-                val odoText = String.format(Locale.US, "%,.1f", settings.odometerKm)
-                val speech = "Your Tata Nexon has covered $odoText kilometers. Next service is due at ${settings.nextServiceKm} kilometers, which is in $remainingKm kilometers."
+                val speech = if (settings.effectiveOdometerKm != null && settings.serviceTargetConfigured) {
+                    val remainingKm = settings.remainingServiceKm?.toInt() ?: 0
+                    val odoText = String.format(Locale.US, "%,.1f", settings.effectiveOdometerKm)
+                    "Your vehicle has covered $odoText kilometers. Next service is due at ${settings.nextServiceKm} kilometers, which is in $remainingKm kilometers."
+                } else "Odometer data is unavailable, so service distance cannot be calculated."
                 respondWithVoice(speech)
             }
 
             VoiceCommand.FindCar -> {
                 val speech = if (settings.hasParkedLocation) {
                     val address = settings.lastParkedAddress ?: "your last recorded parking coordinates"
-                    "Your Tata Nexon is parked at $address."
+                    "Your vehicle is parked at $address."
                 } else {
                     "No saved parking location found. DriveMate will automatically save your spot when you park."
                 }
@@ -289,18 +325,22 @@ class VoiceAssistantManagerImpl(
             is VoiceCommand.ControlClimate -> {
                 val actionResult = capabilityManager?.evaluateAction("climate_control", "climate control")
                 val speech = actionResult?.userMessage
-                    ?: "Your vehicle doesn't currently provide AC control access to DriveMate. Adjust temperature on your Nexon center console."
+                    ?: "Your vehicle doesn't currently provide AC control access to DriveMate. Adjust temperature on the vehicle console."
                 respondWithVoice(speech)
             }
 
             is VoiceCommand.ViewCamera -> {
                 val actionResult = capabilityManager?.evaluateAction("camera_360", "${command.cameraType} camera")
                 val speech = actionResult?.userMessage
-                    ?: "OEM camera feeds are restricted to your Nexon infotainment screen while driving."
+                    ?: "OEM camera feeds are restricted to the vehicle infotainment screen while driving."
                 respondWithVoice(speech)
             }
 
             is VoiceCommand.CheckDocument -> {
+                if (carConnectionManager.connectionState.value.isAndroidAutoConnected) {
+                    respondWithVoice("Vehicle documents are available only on your phone for privacy.")
+                    return
+                }
                 val docs = documentVaultRepository?.documents?.value ?: emptyList()
                 val expiring = docs.filter { it.daysUntilExpiry()?.let { d -> d in 0..30 } == true }
                 val speech = if (expiring.isNotEmpty()) {
@@ -309,19 +349,20 @@ class VoiceAssistantManagerImpl(
                 } else if (docs.isNotEmpty()) {
                     "All your ${docs.size} stored vehicle documents are currently valid."
                 } else {
-                    "Your Tata Nexon RC and insurance details are saved in the document vault."
+                    "Your vehicle documents are saved in the phone-only document vault."
                 }
                 respondWithVoice(speech)
             }
 
             VoiceCommand.CheckMaintenance -> {
-                val remainingKm = settings.remainingServiceKm.toInt()
-                val speech = "Next periodic service is due in $remainingKm kilometers at ${settings.nextServiceKm} kilometers. You are on schedule."
+                val speech = if (settings.remainingServiceKm != null && settings.serviceTargetConfigured) {
+                    "Next periodic service is due in ${settings.remainingServiceKm!!.toInt()} kilometers at ${settings.nextServiceKm} kilometers."
+                } else "Service interval is unavailable until an odometer and service target are configured."
                 respondWithVoice(speech)
             }
 
             is VoiceCommand.CheckExpenses -> {
-                val summary = expenseRepository?.getSummary(settings.odometerKm)
+                val summary = settings.odometerKm?.let { expenseRepository?.getSummary(it) }
                 val speech = if (summary != null) {
                     "You have spent ${summary.currentMonthSpent.toInt()} rupees this month. Average running cost is ${String.format(Locale.getDefault(), "%.1f", summary.costPerKm)} rupees per kilometer."
                 } else {
@@ -333,14 +374,13 @@ class VoiceAssistantManagerImpl(
             is VoiceCommand.WatchVideo -> {
                 val isCarConnected = carConnectionManager.connectionState.value.isVerifiedCarSession
                 if (isCarConnected) {
-                    // Google / NHTSA safety restriction while driving
-                    val speech = "For driving safety, video cannot play on the car screen while driving. Playing ${command.query} audio via your car speakers."
-                    respondWithVoice(speech)
-                    dispatchMusicIntent(command.query, "YouTube Music")
+                    respondWithVoice("For driving safety, video is unavailable on the car screen. Open a compatible media app for audio.")
                 } else {
-                    val speech = "Opening YouTube for ${command.query} on your phone screen."
-                    respondWithVoice(speech)
-                    dispatchYouTubeIntent(command.query)
+                    val launched = dispatchYouTubeIntent(command.query)
+                    respondWithVoice(
+                        if (launched) "Opened YouTube for ${command.query} on your phone."
+                        else "I couldn't open YouTube right now."
+                    )
                 }
             }
 
@@ -353,16 +393,18 @@ class VoiceAssistantManagerImpl(
 
     private suspend fun respondWithVoice(speechText: String) {
         _state.value = VoiceAssistantState.Responding(speechText)
-        audioCoordinator?.onTtsStarted()
-        withContext(Dispatchers.Default) {
-            ttsManager.speak(speechText)
+        try {
+            withContext(Dispatchers.Default) {
+                ttsManager.speak(speechText)
+            }
+        } finally {
+            audioCoordinator?.releaseAll()
         }
-        audioCoordinator?.onTtsCompleted()
         delay(400L)
         _state.value = VoiceAssistantState.Idle
     }
 
-    private fun dispatchMusicIntent(query: String, preferredApp: String) {
+    private fun dispatchMusicIntent(query: String, preferredApp: String): Boolean {
         try {
             val intent = Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -381,25 +423,29 @@ class VoiceAssistantManagerImpl(
 
             if (intent.resolveActivity(context.packageManager) != null) {
                 context.startActivity(intent)
+                return true
             } else {
                 val uriIntent = Intent(Intent.ACTION_VIEW, Uri.parse("spotify:search:${Uri.encode(query)}")).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 if (uriIntent.resolveActivity(context.packageManager) != null) {
                     context.startActivity(uriIntent)
+                    return true
                 } else {
                     val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://open.spotify.com/search/${Uri.encode(query)}")).apply {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
                     context.startActivity(webIntent)
+                    return true
                 }
             }
         } catch (e: Exception) {
             AppLogger.e(AppLogger.Tag.APP, "Failed to dispatch music intent: ${e.message}", e)
         }
+        return false
     }
 
-    private fun dispatchYouTubeIntent(query: String) {
+    private fun dispatchYouTubeIntent(query: String): Boolean {
         try {
             val encoded = Uri.encode(query)
             val appIntent = Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube:$encoded")).apply {
@@ -407,14 +453,17 @@ class VoiceAssistantManagerImpl(
             }
             if (appIntent.resolveActivity(context.packageManager) != null) {
                 context.startActivity(appIntent)
+                return true
             } else {
                 val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=$encoded")).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 context.startActivity(webIntent)
+                return true
             }
         } catch (e: Exception) {
             AppLogger.e(AppLogger.Tag.APP, "Failed to launch YouTube: ${e.message}", e)
         }
+        return false
     }
 }

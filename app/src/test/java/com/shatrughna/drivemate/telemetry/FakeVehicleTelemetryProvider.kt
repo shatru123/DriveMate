@@ -16,7 +16,7 @@ class FakeVehicleTelemetryProvider : VehicleTelemetryProvider {
 
     private val _telemetry = MutableStateFlow(
         VehicleTelemetry(
-            isCarConnected = true,
+            androidAutoConnected = true,
             speedSource = TelemetrySource.ANDROID_AUTO_CAR_HARDWARE,
             speedAvailability = TelemetryAvailability.LIVE,
             odometerSource = TelemetrySource.ANDROID_AUTO_CAR_HARDWARE,
@@ -67,7 +67,7 @@ class FakeVehicleTelemetryProvider : VehicleTelemetryProvider {
         isAvailable = false
         _telemetry.update {
             it.copy(
-                isCarConnected = false,
+                androidAutoConnected = false,
                 speedAvailability = TelemetryAvailability.NOT_CONNECTED,
                 odometerAvailability = TelemetryAvailability.STALE
             )

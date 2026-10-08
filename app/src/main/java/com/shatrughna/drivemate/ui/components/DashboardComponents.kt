@@ -635,7 +635,7 @@ fun DynamicDestinationSearchCard(
             ) {
                 listOf(
                     "Petrol Pump" to Icons.Default.LocalGasStation,
-                    "Tata Service" to Icons.Default.Build,
+                    "Vehicle Service" to Icons.Default.Build,
                     "Airport" to Icons.Default.Navigation,
                     "Parking" to Icons.Default.LocalParking
                 ).forEach { (label, icon) ->
@@ -901,7 +901,9 @@ fun VehicleCareSummaryCard(
     careInfo: VehicleCareInfo,
     modifier: Modifier = Modifier
 ) {
-    val progress = ((careInfo.currentOdometerKm % 15000) / 15000.0).toFloat().coerceIn(0f, 1f)
+    val progress = if (careInfo.currentOdometerKm.isFinite() && careInfo.isServiceScheduleAvailable) {
+        ((careInfo.currentOdometerKm % careInfo.nextServiceTargetKm.coerceAtLeast(1)) / careInfo.nextServiceTargetKm.coerceAtLeast(1).toDouble()).toFloat().coerceIn(0f, 1f)
+    } else 0f
 
     DriveMateCard(
         modifier = modifier.fillMaxWidth(),
@@ -922,7 +924,7 @@ fun VehicleCareSummaryCard(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Tata Nexon Vehicle Care",
+                        text = "Vehicle Care",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = TextPrimary
@@ -930,7 +932,7 @@ fun VehicleCareSummaryCard(
                 }
 
                 Text(
-                    text = String.format("%,.1f km", careInfo.currentOdometerKm),
+                    text = careInfo.formattedOdometer,
                     style = MaterialTheme.typography.labelLarge,
                     color = NexonCyanPrimary,
                     fontWeight = FontWeight.Bold

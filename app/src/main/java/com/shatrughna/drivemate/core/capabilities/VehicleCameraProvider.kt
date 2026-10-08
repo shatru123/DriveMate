@@ -20,7 +20,7 @@ class VehicleCameraProviderImpl(
             CapabilityActionResult(
                 success = false,
                 status = result.status,
-                userMessage = "OEM 360° camera feed is displayed on your Nexon infotainment display. Phone companion access is not available on this vehicle."
+                userMessage = "OEM 360° camera feed is displayed on the vehicle infotainment screen. Phone companion access is not available."
             )
         } else result
     }
@@ -42,7 +42,7 @@ class VehicleCameraProviderImpl(
             CapabilityActionResult(
                 success = false,
                 status = result.status,
-                userMessage = "Front camera view is only accessible via your Nexon infotainment touchscreen."
+                userMessage = "Front camera view is only accessible via the vehicle infotainment touchscreen."
             )
         } else result
     }

@@ -24,7 +24,7 @@ class AndroidAutoVehicleTelemetryProvider(
 
     private val _telemetry = MutableStateFlow(
         VehicleTelemetry(
-            isCarConnected = true,
+            androidAutoConnected = true,
             speedSource = TelemetrySource.ANDROID_AUTO_CAR_HARDWARE,
             odometerSource = TelemetrySource.ANDROID_AUTO_CAR_HARDWARE,
             fuelSource = TelemetrySource.ANDROID_AUTO_CAR_HARDWARE
@@ -36,7 +36,7 @@ class AndroidAutoVehicleTelemetryProvider(
     private var isRegistered = false
 
     override val isAvailable: Boolean
-        get() = isRegistered && carInfo != null
+        get() = isRegistered && telemetry.value.vehicleTelemetryConnected
 
     private val speedListener = OnCarDataAvailableListener<Speed> { speed ->
         try {
@@ -61,7 +61,9 @@ class AndroidAutoVehicleTelemetryProvider(
                     speedKmh = speedKmh,
                     speedSource = TelemetrySource.ANDROID_AUTO_CAR_HARDWARE,
                     speedAvailability = availability,
-                    isCarConnected = true,
+                    androidAutoConnected = true,
+                    vehicleTelemetryConnected = availability == TelemetryAvailability.LIVE || current.vehicleTelemetryConnected,
+                    speedTimestampMillis = if (speedKmh != null) System.currentTimeMillis() else current.speedTimestampMillis,
                     lastUpdatedTimestamp = System.currentTimeMillis()
                 )
             }
@@ -90,7 +92,9 @@ class AndroidAutoVehicleTelemetryProvider(
                     vehicleOdometerKm = odoKm,
                     odometerSource = TelemetrySource.ANDROID_AUTO_CAR_HARDWARE,
                     odometerAvailability = availability,
-                    isCarConnected = true,
+                    androidAutoConnected = true,
+                    vehicleTelemetryConnected = availability == TelemetryAvailability.LIVE || current.vehicleTelemetryConnected,
+                    odometerTimestampMillis = if (odoKm != null) System.currentTimeMillis() else current.odometerTimestampMillis,
                     lastUpdatedTimestamp = System.currentTimeMillis()
                 )
             }
@@ -121,7 +125,11 @@ class AndroidAutoVehicleTelemetryProvider(
                     rangeRemainingKm = rangeKm,
                     fuelSource = TelemetrySource.ANDROID_AUTO_CAR_HARDWARE,
                     fuelAvailability = availability,
-                    isCarConnected = true,
+                    rangeAvailability = mapCarValueStatus(energyLevel.rangeRemainingMeters.status, rangeKm != null),
+                    androidAutoConnected = true,
+                    vehicleTelemetryConnected = availability == TelemetryAvailability.LIVE || current.vehicleTelemetryConnected,
+                    fuelTimestampMillis = if (fuelPercent != null) System.currentTimeMillis() else current.fuelTimestampMillis,
+                    rangeTimestampMillis = if (rangeKm != null) System.currentTimeMillis() else current.rangeTimestampMillis,
                     lastUpdatedTimestamp = System.currentTimeMillis()
                 )
             }
@@ -236,7 +244,8 @@ class AndroidAutoVehicleTelemetryProvider(
         carInfo = null
         _telemetry.update { current ->
             current.copy(
-                isCarConnected = false,
+                androidAutoConnected = false,
+                vehicleTelemetryConnected = false,
                 speedAvailability = TelemetryAvailability.NOT_CONNECTED,
                 odometerAvailability = if (current.vehicleOdometerKm != null) TelemetryAvailability.STALE else TelemetryAvailability.NOT_CONNECTED,
                 fuelAvailability = if (current.fuelLevelPercent != null) TelemetryAvailability.STALE else TelemetryAvailability.NOT_CONNECTED

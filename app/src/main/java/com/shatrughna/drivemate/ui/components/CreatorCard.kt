@@ -113,7 +113,7 @@ fun CreatorCard(
                     Spacer(modifier = Modifier.height(2.dp))
 
                     Text(
-                        text = "Built for Tata Nexon Creative+ S",
+                        text = "Built for truthful vehicle data",
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray,
                         fontSize = 11.sp

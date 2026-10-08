@@ -76,7 +76,7 @@ fun MyCarScreen(
     capabilities: VehicleCapabilitiesState,
     topInsight: AiCarInsight?,
     documentCount: Int,
-    nextServiceDueKm: Double,
+    nextServiceDueKm: Double?,
     totalExpenses: Double,
     onNavigateToDocuments: () -> Unit,
     onNavigateToMaintenance: () -> Unit,
@@ -208,7 +208,7 @@ fun MyCarScreen(
 
                     HubActionTile(
                         title = "Service & Care",
-                        subtitle = "Due at ${nextServiceDueKm.toInt()} km",
+                        subtitle = nextServiceDueKm?.let { "Due at ${it.toInt()} km" } ?: "Service interval unavailable",
                         icon = Icons.Default.Build,
                         accentColor = NexonAmberAccent,
                         onClick = onNavigateToMaintenance,

@@ -108,7 +108,7 @@ fun SplashScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Tata Nexon Creative+ S • MH 28 BW 1624",
+                text = "Truthful vehicle data • Safe driving companion",
                 style = MaterialTheme.typography.labelSmall,
                 color = TextMuted
             )

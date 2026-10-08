@@ -93,7 +93,7 @@ class MaintenanceRepositoryImpl(
                         type = ServiceType.valueOf(obj.optString("type", ServiceType.PERIODIC_SERVICE.name)),
                         dateMillis = obj.optLong("dateMillis", System.currentTimeMillis()),
                         odometerKm = obj.getDouble("odometerKm"),
-                        workshopName = obj.optString("workshopName", "Tata Authorized Service"),
+                        workshopName = obj.optString("workshopName", "Service provider not specified"),
                         cost = obj.optDouble("cost", 0.0),
                         invoiceNumber = obj.optString("invoiceNumber", ""),
                         notes = obj.optString("notes", ""),
@@ -122,7 +122,7 @@ class MaintenanceRepositoryImpl(
 
         // If this record has a higher odometer reading, update last service odometer
         val currentSched = _serviceSchedule.value
-        if (record.odometerKm > currentSched.lastServiceOdometerKm) {
+        if (!currentSched.lastServiceOdometerKm.isFinite() || record.odometerKm > currentSched.lastServiceOdometerKm) {
             val updatedSchedule = currentSched.copy(
                 lastServiceOdometerKm = record.odometerKm,
                 lastServiceDateMillis = record.dateMillis

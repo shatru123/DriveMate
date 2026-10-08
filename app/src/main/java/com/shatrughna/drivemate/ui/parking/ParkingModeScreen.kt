@@ -160,7 +160,7 @@ fun ParkingModeScreen(
                             color = TextPrimary
                         )
                         Text(
-                            text = "Tata Nexon 360° camera is displayed on the infotainment touchscreen. Ultrasonic proximity radar visualized below.",
+                            text = "The vehicle camera is displayed on the infotainment touchscreen. Proximity sensing is shown below when available.",
                             style = MaterialTheme.typography.bodySmall,
                             color = TextSecondary
                         )
@@ -206,7 +206,7 @@ fun ParkingModeScreen(
                     }
 
                     Text(
-                        text = "Live ultrasonic proximity beeps & visual radar arcs are handled natively by your Tata Nexon cluster & touchscreen.",
+                        text = "Proximity beeps and radar are handled by the vehicle cluster and touchscreen.",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextMuted,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center

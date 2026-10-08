@@ -28,6 +28,7 @@ import com.shatrughna.drivemate.location.WeatherLocationResolver
 import com.shatrughna.drivemate.location.WeatherLocationResolverImpl
 import com.shatrughna.drivemate.util.AppLogger
 import com.shatrughna.drivemate.core.telemetry.VehicleTelemetry
+import com.shatrughna.drivemate.core.telemetry.TelemetryAvailability
 import com.shatrughna.drivemate.core.telemetry.VehicleTelemetryRepository
 import com.shatrughna.drivemate.voice.AudioInputCoordinator
 import com.shatrughna.drivemate.voice.AudioOwnerState
@@ -99,6 +100,18 @@ class MainViewModel(
             initialValue = DriveMateSettings()
         )
 
+    /** Service calculations prefer a live/stale vehicle odometer, then explicit manual calibration. */
+    val serviceOdometerKm: StateFlow<Double?> = combine(settings, telemetry) { currentSettings, currentTelemetry ->
+        currentTelemetry.vehicleOdometerKm?.takeIf {
+            currentTelemetry.odometerAvailability == TelemetryAvailability.LIVE ||
+                currentTelemetry.odometerAvailability == TelemetryAvailability.STALE
+        } ?: currentSettings.effectiveOdometerKm
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = null
+    )
+
     val connectionState: StateFlow<CarConnectionState> = carConnectionManager.connectionState
     val isSessionActive: StateFlow<Boolean> = sessionManager.isSessionActive
     val hasGreetingPlayed: StateFlow<Boolean> = sessionManager.hasGreetingPlayed
@@ -129,16 +142,26 @@ class MainViewModel(
     private val _weather = MutableStateFlow(WeatherInfo.unavailable())
     val weather: StateFlow<WeatherInfo> = _weather.asStateFlow()
 
-    val vehicleCareInfo: StateFlow<VehicleCareInfo> = combine(settings) { (currentSettings) ->
-        vehicleCareManager.getVehicleCareInfo(currentSettings)
+    val vehicleCareInfo: StateFlow<VehicleCareInfo> = combine(settings, serviceOdometerKm) { currentSettings, odometerKm ->
+        vehicleCareManager.getVehicleCareInfo(
+            currentSettings.copy(
+                manualOdometerKm = odometerKm,
+                odometerKm = odometerKm
+            )
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = VehicleCareInfo()
     )
 
-    val suggestedDestinations: StateFlow<List<Destination>> = combine(settings) { (currentSettings) ->
-        destinationManager.getSuggestedDestinations(currentSettings)
+    val suggestedDestinations: StateFlow<List<Destination>> = combine(settings, serviceOdometerKm) { currentSettings, odometerKm ->
+        destinationManager.getSuggestedDestinations(
+            currentSettings.copy(
+                manualOdometerKm = odometerKm,
+                odometerKm = odometerKm
+            )
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -165,7 +188,7 @@ class MainViewModel(
     val expenses: StateFlow<List<VehicleExpense>> = expenseRepository?.expenses
         ?: MutableStateFlow(emptyList())
     val expenseSummary: StateFlow<ExpenseSummary> = combine(expenses, settings) { _, sett ->
-        expenseRepository?.getSummary(sett.odometerKm)
+        sett.odometerKm?.let { expenseRepository?.getSummary(it) }
             ?: ExpenseSummary(0.0, 0.0, emptyMap(), 0.0)
     }.stateIn(
         scope = viewModelScope,
@@ -200,7 +223,7 @@ class MainViewModel(
         expenseSummary,
         monthlyDrivingSummary
     ) { sett, docs, sched, expSum, driveSum ->
-        AiCarInsightsEngine.generateInsights(sett.odometerKm, docs, sched, expSum, driveSum).firstOrNull()
+        sett.odometerKm?.let { AiCarInsightsEngine.generateInsights(it, docs, sched, expSum, driveSum).firstOrNull() }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -276,7 +299,7 @@ class MainViewModel(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = "Good evening, Shatrughna. Welcome to your Tata Nexon. Have a safe drive."
+        initialValue = "Welcome to DriveMate. Vehicle profile unavailable."
     )
 
     init {
@@ -382,7 +405,7 @@ class MainViewModel(
             if (mapIntent.resolveActivity(context.packageManager) != null) {
                 context.startActivity(mapIntent)
             } else {
-                val geoIntent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:$lat,$lon?q=$lat,$lon(Parked Nexon)")).apply {
+                val geoIntent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:$lat,$lon?q=$lat,$lon(Parked vehicle)")).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 context.startActivity(geoIntent)

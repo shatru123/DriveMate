@@ -11,13 +11,13 @@ data class TripReport(
     val endTimeMillis: Long = System.currentTimeMillis(),
     val distanceKm: Float = 0.0f,
     val durationMinutes: Long = 0L,
-    val avgSpeedKmh: Float = 0.0f,
-    val maxSpeedKmh: Float = 0.0f,
-    val ecoScore: Int = 90, // 0 - 100 based on driving smoothness
-    val startLocationName: String = "Origin",
-    val endLocationName: String = "Destination",
+    val avgSpeedKmh: Float? = null,
+    val maxSpeedKmh: Float? = null,
+    val ecoScore: Int? = null,
+    val startLocationName: String = "Location unavailable",
+    val endLocationName: String = "Location unavailable",
     val routePoints: List<RoutePoint> = emptyList(),
-    val fuelConsumedLiters: Float = 0.0f
+    val fuelConsumedLiters: Float? = null
 ) {
     val formattedDuration: String
         get() = when {
@@ -29,5 +29,5 @@ data class TripReport(
         get() = String.format("%.1f km", distanceKm)
 
     val formattedAvgSpeed: String
-        get() = String.format("%.0f km/h", avgSpeedKmh)
+        get() = avgSpeedKmh?.let { String.format("%.0f km/h", it) } ?: "Unavailable"
 }

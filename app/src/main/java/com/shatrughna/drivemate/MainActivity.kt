@@ -1,6 +1,9 @@
 package com.shatrughna.drivemate
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -25,6 +28,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.shatrughna.drivemate.ui.analytics.DrivingAnalyticsScreen
@@ -143,6 +147,7 @@ fun DriveMateAppNavigation(
     mainViewModel: MainViewModel,
     settingsViewModel: SettingsViewModel
 ) {
+    val app = LocalContext.current.applicationContext as DriveMateApplication
     var currentScreen by remember { mutableStateOf<Screen>(Screen.Splash) }
 
     // Intercept back presses when on sub-screens to return safely to Dashboard or MyCar
@@ -165,6 +170,7 @@ fun DriveMateAppNavigation(
     val monthlyDrivingSummary by mainViewModel.monthlyDrivingSummary.collectAsStateWithLifecycle()
     val topInsight by mainViewModel.topInsight.collectAsStateWithLifecycle()
     val recentTrips by mainViewModel.recentTrips.collectAsStateWithLifecycle()
+    val serviceOdometerKm by mainViewModel.serviceOdometerKm.collectAsStateWithLifecycle()
 
     AnimatedContent(
         targetState = currentScreen,
@@ -222,10 +228,17 @@ fun DriveMateAppNavigation(
                 val connectionState by mainViewModel.connectionState.collectAsStateWithLifecycle()
                 VehicleConnectionDiagnosticsScreen(
                     telemetry = telemetry,
-                    isCarConnected = connectionState.isConnected,
+                    isCarConnected = connectionState.isAndroidAutoConnected,
                     audioState = audioState,
                     onNavigateBack = { currentScreen = Screen.Dashboard },
-                    onRefresh = { }
+                    onRefresh = { },
+                    onCopyDiagnostics = {
+                        val diagnostics = app.vehicleTelemetryRepository.getDiagnostics().entries
+                            .joinToString("\n") { (key, value) -> "$key: $value" }
+                        (app.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager)?.setPrimaryClip(
+                            ClipData.newPlainText("DriveMate diagnostics", diagnostics)
+                        )
+                    }
                 )
             }
             Screen.MyCar -> {
@@ -234,7 +247,7 @@ fun DriveMateAppNavigation(
                     capabilities = capabilities,
                     topInsight = topInsight,
                     documentCount = documents.size,
-                    nextServiceDueKm = serviceSchedule.nextServiceOdometerKm,
+                    nextServiceDueKm = serviceSchedule.nextServiceOdometerKm.takeIf { it.isFinite() },
                     totalExpenses = expenseSummary.totalSpent,
                     onNavigateToDocuments = { currentScreen = Screen.DocumentVault },
                     onNavigateToMaintenance = { currentScreen = Screen.Maintenance },
@@ -256,7 +269,7 @@ fun DriveMateAppNavigation(
             }
             Screen.Maintenance -> {
                 MaintenanceScreen(
-                    currentOdometerKm = settings.odometerKm,
+                    currentOdometerKm = serviceOdometerKm ?: Double.NaN,
                     schedule = serviceSchedule,
                     records = serviceRecords,
                     onAddRecord = mainViewModel::addServiceRecord,

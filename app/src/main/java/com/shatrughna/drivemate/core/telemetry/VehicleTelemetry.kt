@@ -54,7 +54,7 @@ data class VehicleTelemetry(
     val odometerAvailability: TelemetryAvailability = TelemetryAvailability.UNAVAILABLE,
 
     // Manual calibrated odometer fallback
-    val manualOdometerKm: Double = 12500.0,
+    val manualOdometerKm: Double? = null,
 
     // Current Trip GPS Distance
     val tripGpsDistanceKm: Double = 0.0,
@@ -64,6 +64,7 @@ data class VehicleTelemetry(
     val rangeRemainingKm: Float? = null,
     val fuelSource: TelemetrySource = TelemetrySource.NONE,
     val fuelAvailability: TelemetryAvailability = TelemetryAvailability.UNAVAILABLE,
+    val rangeAvailability: TelemetryAvailability = TelemetryAvailability.UNAVAILABLE,
 
     // TPMS
     val tpms: TpmsState = TpmsState(),
@@ -74,18 +75,26 @@ data class VehicleTelemetry(
     val engineRpm: Int? = null,
 
     // Metadata
-    val isCarConnected: Boolean = false,
-    val vehicleName: String = "Tata Nexon Creative+ S",
-    val registrationNumber: String = "MH 28 BW 1624",
-    val lastUpdatedTimestamp: Long = 0L
+    val androidAutoConnected: Boolean = false,
+    val vehicleTelemetryConnected: Boolean = false,
+    val vehicleName: String? = null,
+    val registrationNumber: String? = null,
+    val speedTimestampMillis: Long? = null,
+    val odometerTimestampMillis: Long? = null,
+    val fuelTimestampMillis: Long? = null,
+    val rangeTimestampMillis: Long? = null,
+    val lastUpdatedTimestamp: Long? = null
 ) {
     /**
      * Resolves the most accurate authoritative odometer value available:
      * 1. Direct vehicle telemetry from Car Hardware / OBD2 if live/stale
      * 2. Otherwise manual calibration from settings
      */
-    val effectiveOdometerKm: Double
-        get() = vehicleOdometerKm ?: manualOdometerKm
+    val isCarConnected: Boolean
+        get() = androidAutoConnected
+
+    val effectiveOdometerKm: Double?
+        get() = vehicleOdometerKm?.takeIf { isAuthoritativeOdometer } ?: manualOdometerKm
 
     val isAuthoritativeOdometer: Boolean
         get() = vehicleOdometerKm != null && (odometerAvailability == TelemetryAvailability.LIVE || odometerAvailability == TelemetryAvailability.STALE)

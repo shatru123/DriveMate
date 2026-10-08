@@ -77,7 +77,7 @@ fun TripReportCard(
                     color = Color(0xFF065F46)
                 ) {
                     Text(
-                        text = "Eco ${tripReport.ecoScore}%",
+                        text = tripReport.ecoScore?.let { "Eco $it%" } ?: "Eco score unavailable",
                         color = Color(0xFF34D399),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
@@ -131,7 +131,7 @@ fun TripReportCard(
                 TripStatItem(
                     icon = Icons.Default.LocalGasStation,
                     label = "Fuel Est.",
-                    value = String.format("%.1f L", tripReport.fuelConsumedLiters),
+                    value = tripReport.fuelConsumedLiters?.let { String.format("%.1f L", it) } ?: "Unavailable",
                     tint = Color(0xFF34D399)
                 )
             }

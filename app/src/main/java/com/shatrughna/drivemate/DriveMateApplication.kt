@@ -147,7 +147,8 @@ class DriveMateApplication : Application() {
         carConnectionManager = AndroidAutoCarConnectionManager(this)
         sessionManager = DrivingSessionManagerImpl(carConnectionManager)
         greetingGenerator = GreetingGeneratorImpl()
-        ttsManager = GreetingTtsManagerImpl(this)
+        audioInputCoordinator = AudioInputCoordinatorImpl(this)
+        ttsManager = GreetingTtsManagerImpl(this, audioInputCoordinator)
         weatherRepository = OpenMeteoWeatherRepository()
         vehicleCareManager = VehicleCareManagerImpl()
         recentDestinationRepository = RecentDestinationRepositoryImpl(this)
@@ -155,7 +156,6 @@ class DriveMateApplication : Application() {
         locationProvider = DeviceLocationProviderImpl(this)
         locationResolver = WeatherLocationResolverImpl(locationProvider)
         tripHistoryRepository = TripHistoryRepositoryImpl(this)
-        audioInputCoordinator = AudioInputCoordinatorImpl()
 
         // DriveMate V4 Capabilities & Providers
         capabilityManager = com.shatrughna.drivemate.core.capabilities.VehicleCapabilityManagerImpl()
@@ -232,7 +232,6 @@ class DriveMateApplication : Application() {
                 } else {
                     AppLogger.i(AppLogger.Tag.SESSION, "Stopping DriveMateSessionService and releasing voice resources.")
                     DriveMateSessionService.stopService(this@DriveMateApplication)
-                    vehicleDataCoordinator.detachCarContext()
                     audioInputCoordinator.releaseAll()
                     voiceAssistantManager.release()
                     wakeWordEngine.stop()
@@ -245,9 +244,24 @@ class DriveMateApplication : Application() {
         applicationScope.launch {
             tripTracker.tripStats.collectLatest { stats ->
                 vehicleDataCoordinator.updateTripGpsDistance(stats.activeTripDistanceKm.toDouble())
-                val hours = (stats.activeTripDurationSeconds / 3600f).coerceAtLeast(0.001f)
-                val calculatedGpsSpeed = if (stats.activeTripDistanceKm > 0.05f) (stats.activeTripDistanceKm / hours) else 0f
-                vehicleDataCoordinator.updateGpsSpeed(calculatedGpsSpeed)
+            }
+        }
+
+        applicationScope.launch {
+            tripTracker.latestGpsSpeedKmh.collectLatest { speed ->
+                vehicleDataCoordinator.updateGpsSpeed(speed)
+            }
+        }
+
+        applicationScope.launch {
+            vehicleTelemetryRepository.telemetry.collectLatest { telemetry ->
+                val directMotion = telemetry.androidAutoConnected &&
+                    telemetry.speedSource == com.shatrughna.drivemate.core.telemetry.TelemetrySource.ANDROID_AUTO_CAR_HARDWARE &&
+                    telemetry.speedAvailability == com.shatrughna.drivemate.core.telemetry.TelemetryAvailability.LIVE &&
+                    (telemetry.speedKmh ?: 0f) >= 5f
+                if (directMotion) {
+                    sessionManager.startDrivingSession()
+                }
             }
         }
 

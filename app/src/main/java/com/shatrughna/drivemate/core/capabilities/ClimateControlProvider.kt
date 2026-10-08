@@ -50,7 +50,7 @@ class VehicleClimateControlProviderImpl(
             return CapabilityActionResult(
                 success = false,
                 status = result.status,
-                userMessage = "Climate controls are read-only. Your Tata Nexon does not expose direct HVAC actuation to DriveMate."
+                userMessage = "Climate controls are read-only. This vehicle does not expose direct HVAC actuation to DriveMate."
             )
         }
         val clamped = tempCelsius.coerceIn(16.0f, 30.0f)

@@ -51,11 +51,12 @@ class DestinationManagerTest {
         val settings = DriveMateSettings(
             odometerKm = 14200.0,
             nextServiceKm = 15000,
+            serviceTargetConfigured = true,
             fuelReminderEnabled = false
         )
 
         val suggestions = destinationManager.getSuggestedDestinations(settings)
-        assertTrue(suggestions.any { it.category == DestinationCategory.SERVICE_CENTER && it.name.contains("Tata Service") })
+        assertTrue(suggestions.any { it.category == DestinationCategory.SERVICE_CENTER && it.name.contains("Vehicle Service") })
     }
 
     @Test

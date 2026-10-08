@@ -66,7 +66,7 @@ fun FindMyCarCard(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = "Find My Nexon",
+                            text = "Find My Vehicle",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = Color.White

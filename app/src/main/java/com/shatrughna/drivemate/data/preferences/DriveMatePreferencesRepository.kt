@@ -94,6 +94,7 @@ class DriveMatePreferencesRepositoryImpl(
         val ODOMETER_DOUBLE = doublePreferencesKey("odometer_km_double")
         val ODOMETER_KM = intPreferencesKey("odometer_km")
         val NEXT_SERVICE_KM = intPreferencesKey("next_service_km")
+        val SERVICE_TARGET_CONFIGURED = booleanPreferencesKey("service_target_configured")
         val FUEL_REMINDER = booleanPreferencesKey("fuel_reminder_enabled")
         val HOME_ADDRESS = stringPreferencesKey("home_address")
         val OFFICE_ADDRESS = stringPreferencesKey("office_address")
@@ -126,35 +127,37 @@ class DriveMatePreferencesRepositoryImpl(
         }
         .map { preferences ->
             DriveMateSettings(
-                driverName = preferences[PreferencesKeys.DRIVER_NAME] ?: "Shatrughna",
-                vehicleBrand = preferences[PreferencesKeys.VEHICLE_BRAND] ?: "TATA",
-                vehicleModel = preferences[PreferencesKeys.VEHICLE_MODEL] ?: "Nexon",
-                vehicleVariant = preferences[PreferencesKeys.VEHICLE_VARIANT] ?: "Creative+ S",
-                vehicleRegistrationNumber = preferences[PreferencesKeys.VEHICLE_REGISTRATION] ?: "MH 28 BW 1624",
+                driverName = preferences[PreferencesKeys.DRIVER_NAME] ?: "",
+                vehicleBrand = preferences[PreferencesKeys.VEHICLE_BRAND] ?: "",
+                vehicleModel = preferences[PreferencesKeys.VEHICLE_MODEL] ?: "",
+                vehicleVariant = preferences[PreferencesKeys.VEHICLE_VARIANT] ?: "",
+                vehicleRegistrationNumber = preferences[PreferencesKeys.VEHICLE_REGISTRATION] ?: "",
                 vehiclePhotoUri = preferences[PreferencesKeys.VEHICLE_PHOTO_URI],
                 greetingEnabled = preferences[PreferencesKeys.GREETING_ENABLED] ?: true,
                 autoGreetingOnAndroidAuto = preferences[PreferencesKeys.AUTO_GREETING_AA] ?: false,
                 greetingStyle = GreetingStyle.fromName(preferences[PreferencesKeys.GREETING_STYLE]),
                 customGreetingTemplate = preferences[PreferencesKeys.CUSTOM_GREETING_TEMPLATE]
-                    ?: "Good {timeOfDay}, {name}. Welcome to your {brand} {model}.",
+                    ?: "Good {timeOfDay}, {name}. Welcome to your vehicle.",
                 speechRate = preferences[PreferencesKeys.SPEECH_RATE] ?: 1.0f,
                 pitch = preferences[PreferencesKeys.PITCH] ?: 1.0f,
                 languageTag = preferences[PreferencesKeys.LANGUAGE_TAG] ?: "en-IN",
                 voiceName = preferences[PreferencesKeys.VOICE_NAME],
                 autoMonitorBluetooth = preferences[PreferencesKeys.AUTO_MONITOR_BT] ?: true,
-                targetBluetoothName = preferences[PreferencesKeys.TARGET_BT_NAME] ?: "Tata Nexon",
+                targetBluetoothName = preferences[PreferencesKeys.TARGET_BT_NAME] ?: "",
                 includeWeatherInGreeting = preferences[PreferencesKeys.INCLUDE_WEATHER] ?: true,
                 autoDetectLocation = preferences[PreferencesKeys.AUTO_DETECT_LOCATION] ?: true,
                 weatherCityName = preferences[PreferencesKeys.WEATHER_CITY] ?: "",
                 weatherLatitude = preferences[PreferencesKeys.WEATHER_LAT] ?: 0.0,
                 weatherLongitude = preferences[PreferencesKeys.WEATHER_LON] ?: 0.0,
                 manualOdometerKm = preferences[PreferencesKeys.ODOMETER_DOUBLE]
-                    ?: preferences[PreferencesKeys.ODOMETER_KM]?.toDouble()
-                    ?: 12500.0,
+                    ?: preferences[PreferencesKeys.ODOMETER_KM]?.toDouble(),
+                odometerKm = preferences[PreferencesKeys.ODOMETER_DOUBLE]
+                    ?: preferences[PreferencesKeys.ODOMETER_KM]?.toDouble(),
                 nextServiceKm = preferences[PreferencesKeys.NEXT_SERVICE_KM] ?: 15000,
+                serviceTargetConfigured = preferences[PreferencesKeys.SERVICE_TARGET_CONFIGURED] ?: false,
                 fuelReminderEnabled = preferences[PreferencesKeys.FUEL_REMINDER] ?: false,
-                homeAddress = preferences[PreferencesKeys.HOME_ADDRESS] ?: "Home",
-                officeAddress = preferences[PreferencesKeys.OFFICE_ADDRESS] ?: "Office",
+                homeAddress = preferences[PreferencesKeys.HOME_ADDRESS] ?: "",
+                officeAddress = preferences[PreferencesKeys.OFFICE_ADDRESS] ?: "",
                 lastParkedLatitude = preferences[PreferencesKeys.LAST_PARKED_LAT],
                 lastParkedLongitude = preferences[PreferencesKeys.LAST_PARKED_LON],
                 lastParkedAddress = preferences[PreferencesKeys.LAST_PARKED_ADDRESS],
@@ -162,7 +165,7 @@ class DriveMatePreferencesRepositoryImpl(
                 driverFatigueAlertEnabled = preferences[PreferencesKeys.DRIVER_FATIGUE_ALERT] ?: true,
                 preferredMusicApp = preferences[PreferencesKeys.PREFERRED_MUSIC_APP] ?: "Spotify",
                 voiceAssistantEnabled = preferences[PreferencesKeys.VOICE_ASSISTANT_ENABLED] ?: true,
-                heyDriveMateEnabled = preferences[PreferencesKeys.HEY_DRIVEMATE_ENABLED] ?: true,
+                heyDriveMateEnabled = preferences[PreferencesKeys.HEY_DRIVEMATE_ENABLED] ?: false,
                 wakeWordSensitivity = preferences[PreferencesKeys.WAKE_WORD_SENSITIVITY] ?: 0.5f,
                 isDemoModeEnabled = preferences[PreferencesKeys.DEMO_MODE_ENABLED] ?: false
             )
@@ -288,8 +291,7 @@ class DriveMatePreferencesRepositoryImpl(
         context.dataStore.edit { preferences ->
             val currentOdometer = preferences[PreferencesKeys.ODOMETER_DOUBLE]
                 ?: preferences[PreferencesKeys.ODOMETER_KM]?.toDouble()
-                ?: 12500.0
-            if (odometerKm < currentOdometer) {
+            if (currentOdometer != null && odometerKm < currentOdometer) {
                 AppLogger.w(
                     AppLogger.Tag.SETTINGS,
                     "Vehicle care odometer update lower than current value (proposed: $odometerKm, current: $currentOdometer)"
@@ -298,6 +300,7 @@ class DriveMatePreferencesRepositoryImpl(
             preferences[PreferencesKeys.ODOMETER_DOUBLE] = odometerKm
             preferences[PreferencesKeys.ODOMETER_KM] = odometerKm.toInt()
             preferences[PreferencesKeys.NEXT_SERVICE_KM] = nextServiceKm
+            preferences[PreferencesKeys.SERVICE_TARGET_CONFIGURED] = true
             preferences[PreferencesKeys.FUEL_REMINDER] = fuelReminder
         }
     }

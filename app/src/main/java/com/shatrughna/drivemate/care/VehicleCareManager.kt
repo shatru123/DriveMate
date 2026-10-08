@@ -12,8 +12,9 @@ class VehicleCareManagerImpl : VehicleCareManager {
 
     override fun getVehicleCareInfo(settings: DriveMateSettings): VehicleCareInfo {
         return VehicleCareInfo(
-            currentOdometerKm = settings.odometerKm,
+            currentOdometerKm = settings.odometerKm ?: Double.NaN,
             nextServiceTargetKm = settings.nextServiceKm,
+            isServiceScheduleAvailable = settings.serviceTargetConfigured,
             isFuelReminderEnabled = settings.fuelReminderEnabled,
             estimatedFuelLevelPercent = null // Real vehicle telemetry unavailable without direct CAN / OBD integration
         )
@@ -22,8 +23,8 @@ class VehicleCareManagerImpl : VehicleCareManager {
     override fun generateCareReminderPhrase(settings: DriveMateSettings): String? {
         val careInfo = getVehicleCareInfo(settings)
 
-        if (careInfo.isServiceDueSoon) {
-            return "Please note: Your Tata Nexon service is due in ${careInfo.distanceRemainingKm} km."
+        if (careInfo.isServiceDueSoon && careInfo.currentOdometerKm.isFinite()) {
+            return "Please note: Your vehicle service is due in ${careInfo.distanceRemainingKm} km."
         }
 
         // Only trigger fuel reminder if REAL fuel telemetry is present

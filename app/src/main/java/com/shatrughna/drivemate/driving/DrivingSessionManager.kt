@@ -37,6 +37,8 @@ interface DrivingSessionManager {
     val greetingTriggerEvents: SharedFlow<DrivingSession>
 
     fun startSessionMonitoring()
+    /** Starts tracking only after an explicit/user or real-motion trigger. */
+    suspend fun startDrivingSession(): Boolean = false
     fun markGreetingPlayed(sessionId: String): Boolean
     fun resetSession()
     suspend fun onConnectionStateChanged(state: CarConnectionState)
@@ -65,6 +67,7 @@ class DrivingSessionManagerImpl(
     override val greetingTriggerEvents: SharedFlow<DrivingSession> = _greetingTriggerEvents.asSharedFlow()
 
     private var previousConnectionState: CarConnectionState = CarConnectionState.Unknown
+    private var latestVerifiedConnection: CarConnectionState.Connected? = null
     private var isMonitoring = false
 
     override fun startSessionMonitoring() {
@@ -87,6 +90,7 @@ class DrivingSessionManagerImpl(
         when (state) {
             is CarConnectionState.Connected -> {
                 if (!state.isVerifiedCarSession) {
+                    latestVerifiedConnection = null
                     AppLogger.d(
                         AppLogger.Tag.SESSION,
                         "Connection is not a verified car session (${state.connectionType.displayName}). Ignoring for driving session trigger."
@@ -94,24 +98,14 @@ class DrivingSessionManagerImpl(
                     if (_isSessionActive.value) {
                         endSessionInternal("Connection transitioned away from verified car session")
                     }
-                } else if (!_isSessionActive.value) {
-                    val newSessionId = UUID.randomUUID().toString()
-                    AppLogger.i(
-                        AppLogger.Tag.SESSION,
-                        "Starting new driving session [$newSessionId] for: ${state.deviceOrVehicleName}"
-                    )
-                    _currentSessionId.value = newSessionId
-                    _isSessionActive.value = true
-                    _sessionStartTime.value = state.timestampMillis
-                    _hasGreetingPlayed.value = false
-
-                    // Emit greeting event for this specific session
-                    _greetingTriggerEvents.emit(DrivingSession(newSessionId, state))
                 } else {
-                    AppLogger.d(
-                        AppLogger.Tag.SESSION,
-                        "Already in active session [${_currentSessionId.value}]. Greeting already played: ${_hasGreetingPlayed.value}. Suppressing duplicate announcement."
-                    )
+                    latestVerifiedConnection = state
+                    if (!_isSessionActive.value) {
+                        AppLogger.i(
+                            AppLogger.Tag.SESSION,
+                            "Verified car connection is passive; waiting for a driving-session trigger."
+                        )
+                    }
                 }
             }
 
@@ -129,12 +123,27 @@ class DrivingSessionManagerImpl(
         previousConnectionState = state
     }
 
+    override suspend fun startDrivingSession(): Boolean = sessionMutex.withLock {
+        val connection = latestVerifiedConnection ?: (previousConnectionState as? CarConnectionState.Connected)
+        if (connection == null || !connection.isVerifiedCarSession || _isSessionActive.value) return@withLock false
+
+        val newSessionId = UUID.randomUUID().toString()
+        AppLogger.i(AppLogger.Tag.SESSION, "Starting driving session [$newSessionId] after a verified trigger")
+        _currentSessionId.value = newSessionId
+        _isSessionActive.value = true
+        _sessionStartTime.value = System.currentTimeMillis()
+        _hasGreetingPlayed.value = false
+        _greetingTriggerEvents.emit(DrivingSession(newSessionId, connection))
+        true
+    }
+
     private fun endSessionInternal(reason: String) {
         AppLogger.i(AppLogger.Tag.SESSION, "Ending driving session [${_currentSessionId.value}]: $reason")
         _isSessionActive.value = false
         _currentSessionId.value = null
         _hasGreetingPlayed.value = false
         _sessionStartTime.value = null
+        latestVerifiedConnection = null
     }
 
     override fun markGreetingPlayed(sessionId: String): Boolean {
@@ -157,5 +166,6 @@ class DrivingSessionManagerImpl(
         _currentSessionId.value = null
         _hasGreetingPlayed.value = false
         _sessionStartTime.value = null
+        latestVerifiedConnection = null
     }
 }

@@ -1,5 +1,10 @@
 package com.shatrughna.drivemate.voice
 
+import android.content.Context
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.os.Build
 import com.shatrughna.drivemate.util.AppLogger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -58,7 +63,7 @@ interface AudioInputCoordinator {
     suspend fun requestVoiceInput(): Boolean
     suspend fun onRecordingStarted()
     suspend fun onRecordingFinished()
-    suspend fun onTtsStarted()
+    suspend fun onTtsStarted(): Boolean
     suspend fun onTtsCompleted()
     fun setProcessing()
     fun setError(message: String)
@@ -72,7 +77,7 @@ interface AudioInputCoordinator {
     suspend fun onCommandListeningFinished()
 }
 
-class AudioInputCoordinatorImpl : AudioInputCoordinator {
+class AudioInputCoordinatorImpl(context: Context? = null) : AudioInputCoordinator {
 
     private val mutex = Mutex()
 
@@ -81,6 +86,9 @@ class AudioInputCoordinatorImpl : AudioInputCoordinator {
 
     private val _activeOwner = MutableStateFlow(AudioResourceOwner.NONE)
     override val activeOwner: StateFlow<AudioResourceOwner> = _activeOwner.asStateFlow()
+
+    private val audioManager = context?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    private var audioFocusRequest: AudioFocusRequest? = null
 
     override suspend fun requestVoiceInput(): Boolean = mutex.withLock {
         if (_activeOwner.value == AudioResourceOwner.TTS_PLAYBACK || _state.value == AudioOwnerState.TTS) {
@@ -101,7 +109,7 @@ class AudioInputCoordinatorImpl : AudioInputCoordinator {
         _state.value = AudioOwnerState.REQUESTING_AUDIO_FOCUS
         AppLogger.i(AppLogger.Tag.AUDIO_FOCUS, "[AUDIO_FOCUS] State -> REQUESTING_AUDIO_FOCUS")
 
-        return true
+        return requestAudioFocusLocked(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
     }
 
     override suspend fun onRecordingStarted() = mutex.withLock {
@@ -120,7 +128,7 @@ class AudioInputCoordinatorImpl : AudioInputCoordinator {
         AppLogger.i(AppLogger.Tag.MICROPHONE, "[MIC_STOPPED] Microphone released immediately. State -> PROCESSING")
     }
 
-    override suspend fun onTtsStarted() = mutex.withLock {
+    override suspend fun onTtsStarted(): Boolean = mutex.withLock {
         if (_activeOwner.value == AudioResourceOwner.MICROPHONE_RECORDING ||
             _activeOwner.value == AudioResourceOwner.VOICE_ASSISTANT_COMMAND
         ) {
@@ -129,7 +137,13 @@ class AudioInputCoordinatorImpl : AudioInputCoordinator {
         }
         _activeOwner.value = AudioResourceOwner.TTS_PLAYBACK
         _state.value = AudioOwnerState.TTS
-        AppLogger.i(AppLogger.Tag.TTS, "[TTS_STARTED] State -> TTS (Audio Focus transient-duck acquired)")
+        val granted = requestAudioFocusLocked(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+        if (!granted) {
+            _activeOwner.value = AudioResourceOwner.NONE
+            _state.value = AudioOwnerState.ERROR
+        }
+        AppLogger.i(AppLogger.Tag.TTS, "[TTS_STARTED] State -> TTS (focusGranted=$granted)")
+        granted
     }
 
     override suspend fun onTtsCompleted() = mutex.withLock {
@@ -139,6 +153,7 @@ class AudioInputCoordinatorImpl : AudioInputCoordinator {
         _state.value = AudioOwnerState.RELEASE_AUDIO_FOCUS
         AppLogger.i(AppLogger.Tag.TTS, "[TTS_COMPLETED] State -> RELEASE_AUDIO_FOCUS")
 
+        releaseAudioFocusLocked()
         _state.value = AudioOwnerState.IDLE
         AppLogger.i(AppLogger.Tag.AUDIO_FOCUS, "[AUDIO_FOCUS_ABANDONED] Audio focus released. State -> IDLE")
     }
@@ -153,12 +168,14 @@ class AudioInputCoordinatorImpl : AudioInputCoordinator {
 
     override fun setError(message: String) {
         _activeOwner.value = AudioResourceOwner.NONE
+        releaseAudioFocusLocked()
         _state.value = AudioOwnerState.ERROR
         AppLogger.w(AppLogger.Tag.AUDIO, "AudioCoordinator: State -> ERROR: $message")
     }
 
     override fun abandonAudioFocus() {
         _activeOwner.value = AudioResourceOwner.NONE
+        releaseAudioFocusLocked()
         _state.value = AudioOwnerState.IDLE
         AppLogger.i(AppLogger.Tag.AUDIO_FOCUS, "[AUDIO_FOCUS_ABANDONED] Complete audio focus release. State -> IDLE")
     }
@@ -214,6 +231,7 @@ class AudioInputCoordinatorImpl : AudioInputCoordinator {
             _state.value == AudioOwnerState.IDLE ||
             _state.value == AudioOwnerState.ERROR
         ) {
+            if (!requestAudioFocusLocked(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)) return false
             _activeOwner.value = AudioResourceOwner.VOICE_ASSISTANT_COMMAND
             _state.value = AudioOwnerState.COMMAND_LISTENING
             AppLogger.d(AppLogger.Tag.AUDIO, "AudioCoordinator: Granted microphone to VOICE_ASSISTANT_COMMAND")
@@ -230,5 +248,56 @@ class AudioInputCoordinatorImpl : AudioInputCoordinator {
         }
         _state.value = AudioOwnerState.PROCESSING
         AppLogger.d(AppLogger.Tag.AUDIO, "AudioCoordinator: Command listening finished. State -> PROCESSING")
+    }
+
+    private fun requestAudioFocusLocked(focusGain: Int): Boolean {
+        val manager = audioManager ?: return true
+        return try {
+            releaseAudioFocusLocked()
+            val attributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build()
+            val request = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                AudioFocusRequest.Builder(focusGain)
+                    .setAudioAttributes(attributes)
+                    .setAcceptsDelayedFocusGain(false)
+                    .setOnAudioFocusChangeListener { change ->
+                        when (change) {
+                            AudioManager.AUDIOFOCUS_LOSS,
+                            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                                AppLogger.w(AppLogger.Tag.AUDIO_FOCUS, "Audio focus lost; releasing DriveMate audio resources")
+                                abandonAudioFocus()
+                            }
+                            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                                AppLogger.d(AppLogger.Tag.AUDIO_FOCUS, "Audio focus may duck; keeping the active DriveMate utterance alive")
+                            }
+                        }
+                    }
+                    .build()
+            } else null
+            val result = if (request != null) {
+                audioFocusRequest = request
+                manager.requestAudioFocus(request)
+            } else {
+                @Suppress("DEPRECATION")
+                manager.requestAudioFocus({ change -> if (change == AudioManager.AUDIOFOCUS_LOSS) abandonAudioFocus() }, AudioManager.STREAM_MUSIC, focusGain)
+            }
+            result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        } catch (e: Exception) {
+            AppLogger.w(AppLogger.Tag.AUDIO_FOCUS, "Unable to acquire transient audio focus", e)
+            false
+        }
+    }
+
+    private fun releaseAudioFocusLocked() {
+        val manager = audioManager ?: return
+        try {
+            audioFocusRequest?.let { manager.abandonAudioFocusRequest(it) }
+        } catch (e: Exception) {
+            AppLogger.w(AppLogger.Tag.AUDIO_FOCUS, "Unable to abandon audio focus", e)
+        } finally {
+            audioFocusRequest = null
+        }
     }
 }

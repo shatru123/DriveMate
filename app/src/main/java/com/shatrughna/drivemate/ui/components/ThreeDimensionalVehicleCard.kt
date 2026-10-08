@@ -95,7 +95,7 @@ import java.io.File
  * Features:
  * 1. Touch-interactive 3D tilt with physics-based spring return.
  * 2. Subtle ambient floating perspective when idle.
- * 3. Real vehicle profile photo rendering or stylized Tata Nexon Creative+ S vector fallback.
+ * 3. Real vehicle profile photo rendering or generic stylized vehicle vector fallback.
  * 4. High Security Registration Plate (HSRP) with "IND" blue bar and formatted registration.
  * 5. High-precision double-precision odometer and upcoming service indicator.
  * 6. Strictly driver-safe: respectful of reduced motion and preview inspection modes.
@@ -241,7 +241,7 @@ fun ThreeDimensionalVehicleCard(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Hero Visual: Photo with dual-layer landscape preservation & ambient glow, or Stylized 3D Tata Nexon Graphic
+                // Hero Visual: Photo with dual-layer landscape preservation & ambient glow, or generic stylized vehicle graphic
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -276,7 +276,7 @@ fun ThreeDimensionalVehicleCard(
                         // Layer 2: 100% complete car display with ContentScale.Fit (no cropping of vehicle body)
                         Image(
                             bitmap = vehicleBitmap!!,
-                            contentDescription = "Tata Nexon Photo",
+                            contentDescription = "Vehicle photo",
                             contentScale = ContentScale.Fit,
                             modifier = Modifier
                                 .fillMaxSize()
@@ -316,7 +316,7 @@ fun ThreeDimensionalVehicleCard(
                             )
                         }
                     } else {
-                        StylizedNexonGraphic()
+                        StylizedVehicleGraphic()
                     }
                 }
 
@@ -330,13 +330,13 @@ fun ThreeDimensionalVehicleCard(
                 ) {
                     Column {
                         Text(
-                            text = settings.vehicleModel,
+                        text = settings.vehicleModel.ifBlank { "Connected vehicle" },
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
                         )
                         Text(
-                            text = settings.vehicleVariant,
+                        text = settings.vehicleVariant.ifBlank { "Vehicle profile" },
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
                             color = NexonCyanPrimary
@@ -390,7 +390,7 @@ fun ThreeDimensionalVehicleCard(
                         Icon(
                             imageVector = Icons.Default.Build,
                             contentDescription = "Service",
-                            tint = if (settings.remainingServiceKm <= 1000) NexonAmberAccent else NexonEmeraldAccent,
+                                tint = if ((settings.remainingServiceKm ?: Double.POSITIVE_INFINITY) <= 1000) NexonAmberAccent else NexonEmeraldAccent,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
@@ -403,10 +403,10 @@ fun ThreeDimensionalVehicleCard(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = String.format("in %,.0f km", settings.remainingServiceKm),
+                                text = settings.remainingServiceKm?.let { String.format("in %,.0f km", it) } ?: "distance unavailable",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = if (settings.remainingServiceKm <= 1000) NexonAmberAccent else NexonEmeraldAccent
+                                color = if ((settings.remainingServiceKm ?: Double.POSITIVE_INFINITY) <= 1000) NexonAmberAccent else NexonEmeraldAccent
                             )
                         }
                     }
@@ -475,11 +475,9 @@ fun HighSecurityRegistrationPlate(
     }
 }
 
-/**
- * Stylized futuristic vector graphic of the Tata Nexon Creative+ S.
- */
+/** Stylized futuristic vector graphic used when no vehicle photo is configured. */
 @Composable
-private fun StylizedNexonGraphic() {
+private fun StylizedVehicleGraphic() {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
@@ -507,7 +505,7 @@ private fun StylizedNexonGraphic() {
                 )
             }
 
-            // Stylized Nexon Coupe SUV Silhouette
+            // Generic compact vehicle silhouette
             val carBody = Path().apply {
                 // Hood & Front A-pillar
                 moveTo(w * 0.18f, h * 0.68f)
@@ -530,7 +528,7 @@ private fun StylizedNexonGraphic() {
                 )
             )
 
-            // Nexon signature high-contrast dual-tone roof accent
+            // High-contrast dual-tone roof accent
             val roofAccent = Path().apply {
                 moveTo(w * 0.44f, h * 0.39f)
                 lineTo(w * 0.67f, h * 0.38f)
@@ -540,7 +538,7 @@ private fun StylizedNexonGraphic() {
             }
             drawPath(roofAccent, color = Color(0xFFF1F5F9))
 
-            // Signature Projector Headlamp Beam Cone
+            // Headlamp beam cone
             val headlampBeam = Path().apply {
                 moveTo(w * 0.20f, h * 0.63f)
                 lineTo(0f, h * 0.58f)
@@ -557,7 +555,7 @@ private fun StylizedNexonGraphic() {
                 )
             )
 
-            // Signature LED DRL Brow (Tata Nexon signature eyebrow)
+            // LED running-light accent
             drawLine(
                 color = Color(0xFF38BDF8),
                 start = Offset(w * 0.20f, h * 0.63f),
@@ -610,7 +608,7 @@ private fun StylizedNexonGraphic() {
                 .padding(horizontal = 8.dp, vertical = 2.dp)
         ) {
             Text(
-                text = "TATA NEXON CREATIVE+ S",
+                text = "CONNECTED VEHICLE",
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Bold,
                 color = NexonCyanPrimary,

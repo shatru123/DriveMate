@@ -152,7 +152,7 @@ fun SettingsScreen(
     var customTemplateInput by remember(settings.customGreetingTemplate) { mutableStateOf(settings.customGreetingTemplate) }
 
     var weatherCityInput by remember(settings.weatherCityName) { mutableStateOf(settings.weatherCityName) }
-    var odometerInput by remember(settings.odometerKm) { mutableStateOf(settings.odometerKm.toString()) }
+    var odometerInput by remember(settings.odometerKm) { mutableStateOf(settings.odometerKm?.toString().orEmpty()) }
     var nextServiceInput by remember(settings.nextServiceKm) { mutableStateOf(settings.nextServiceKm.toString()) }
     var homeAddressInput by remember(settings.homeAddress) { mutableStateOf(settings.homeAddress) }
     var officeAddressInput by remember(settings.officeAddress) { mutableStateOf(settings.officeAddress) }
@@ -575,8 +575,9 @@ fun SettingsScreen(
                         value = odometerInput,
                         onValueChange = {
                             odometerInput = it
-                            val parsedOdo = it.toDoubleOrNull() ?: settings.odometerKm
-                            viewModel.updateVehicleCare(parsedOdo, settings.nextServiceKm, settings.fuelReminderEnabled)
+                            it.toDoubleOrNull()?.let { parsedOdo ->
+                                viewModel.updateVehicleCare(parsedOdo, settings.nextServiceKm, settings.fuelReminderEnabled)
+                            }
                         },
                         label = { Text("Current Odometer (km)") },
                         singleLine = true,
@@ -589,7 +590,7 @@ fun SettingsScreen(
                         onValueChange = {
                             nextServiceInput = it
                             val parsedNext = it.toIntOrNull() ?: settings.nextServiceKm
-                            viewModel.updateVehicleCare(settings.odometerKm, parsedNext, settings.fuelReminderEnabled)
+                            settings.odometerKm?.let { odo -> viewModel.updateVehicleCare(odo, parsedNext, settings.fuelReminderEnabled) }
                         },
                         label = { Text("Next Service Target (km, e.g. 15000)") },
                         singleLine = true,
@@ -610,7 +611,7 @@ fun SettingsScreen(
                         Switch(
                             checked = settings.fuelReminderEnabled,
                             onCheckedChange = {
-                                viewModel.updateVehicleCare(settings.odometerKm, settings.nextServiceKm, it)
+                                settings.odometerKm?.let { odo -> viewModel.updateVehicleCare(odo, settings.nextServiceKm, it) }
                             },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = NexonCyanPrimary,
@@ -1082,7 +1083,7 @@ fun SettingsScreen(
                         color = TextPrimary
                     )
                     Text(
-                        text = "Personal Driving Companion for Tata Nexon Creative+ S",
+                        text = "Personal driving companion for your vehicle",
                         style = MaterialTheme.typography.labelSmall,
                         color = TextSecondary
                     )

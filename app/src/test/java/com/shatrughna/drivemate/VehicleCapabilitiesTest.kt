@@ -44,7 +44,7 @@ class VehicleCapabilitiesTest {
 
         val result360 = cameraProvider.request360SurroundView()
         assertFalse(result360.success)
-        assertTrue(result360.userMessage.contains("OEM 360° camera feed is displayed on your Nexon infotainment"))
+        assertTrue(result360.userMessage.contains("OEM 360° camera feed is displayed on the vehicle infotainment"))
 
         val resultReverse = cameraProvider.requestReverseCamera()
         assertFalse(resultReverse.success)

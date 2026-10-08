@@ -33,6 +33,7 @@ import kotlin.math.sqrt
  */
 interface TripTracker {
     val tripStats: StateFlow<TripStats>
+    val latestGpsSpeedKmh: StateFlow<Float?>
     val activeRoutePoints: StateFlow<List<RoutePoint>>
     val latestCompletedTrip: StateFlow<TripReport?>
     fun start()
@@ -51,6 +52,9 @@ class TripTrackerImpl(
 
     private val _activeTripDurationSeconds = MutableStateFlow(0L)
     private val _activeTripDistanceKm = MutableStateFlow(0.0f)
+    private val _activeMovingDurationSeconds = MutableStateFlow(0L)
+    private val _latestGpsSpeedKmh = MutableStateFlow<Float?>(null)
+    override val latestGpsSpeedKmh: StateFlow<Float?> = _latestGpsSpeedKmh.asStateFlow()
     private val _activeRoutePoints = MutableStateFlow<List<RoutePoint>>(emptyList())
     override val activeRoutePoints: StateFlow<List<RoutePoint>> = _activeRoutePoints.asStateFlow()
 
@@ -69,11 +73,13 @@ class TripTrackerImpl(
     override val tripStats: StateFlow<TripStats> = combine(
         preferencesRepository.tripStatsFlow,
         _activeTripDurationSeconds,
-        _activeTripDistanceKm
-    ) { dailySummary, activeDuration, activeDistance ->
+        _activeTripDistanceKm,
+        _activeMovingDurationSeconds
+    ) { dailySummary, activeDuration, activeDistance, movingDuration ->
         dailySummary.copy(
             activeTripDurationSeconds = activeDuration,
-            activeTripDistanceKm = activeDistance
+            activeTripDistanceKm = activeDistance,
+            activeMovingDurationSeconds = movingDuration
         )
     }.stateIn(
         scope = scope,
@@ -114,6 +120,8 @@ class TripTrackerImpl(
         AppLogger.i(AppLogger.Tag.SESSION, "TripTracker: Active driving session started. Beginning verified trip tracking.")
         _activeTripDurationSeconds.value = 0L
         _activeTripDistanceKm.value = 0.0f
+        _activeMovingDurationSeconds.value = 0L
+        _latestGpsSpeedKmh.value = null
         _activeRoutePoints.value = emptyList()
         sessionStartTimeMillis = System.currentTimeMillis()
         startLocationResolvedName = null
@@ -152,30 +160,41 @@ class TripTrackerImpl(
     private suspend fun sampleGpsLocation() {
         if (locationProvider == null || !locationProvider.hasLocationPermission()) return
 
-        val location = locationProvider.getCurrentLocation() ?: return
+        val location = locationProvider.getCurrentLocation() ?: run {
+            _latestGpsSpeedKmh.value = null
+            return
+        }
+        if (location.accuracyMeters != null && location.accuracyMeters > 50f) {
+            _latestGpsSpeedKmh.value = null
+            AppLogger.d(AppLogger.Tag.TRIP, "Ignoring GPS point with poor accuracy: ${location.accuracyMeters}m")
+            return
+        }
+        val pointTimestamp = location.timestampMillis.takeIf { it > 0L } ?: System.currentTimeMillis()
         val currentPoints = _activeRoutePoints.value.toMutableList()
         val lastPoint = currentPoints.lastOrNull()
 
-        var calculatedSpeed = 0f
+        var calculatedSpeed: Float? = location.speedKmh?.takeIf { it.isFinite() && it in 0f..180f }
         if (lastPoint != null) {
             val distMeters = calculateDistanceMeters(
                 lastPoint.latitude, lastPoint.longitude,
                 location.latitude, location.longitude
             )
-            val timeDiffSec = ((System.currentTimeMillis() - lastPoint.timestampMillis) / 1000f).coerceAtLeast(1f)
-            calculatedSpeed = ((distMeters / timeDiffSec) * 3.6).toFloat() // m/s to km/h
-
-            // Reject impossible GPS jumps (speed > 160 km/h) caused by multipath jitter or cell tower jump
-            if (calculatedSpeed > 160.0f) {
-                AppLogger.w(
-                    AppLogger.Tag.SESSION,
-                    "TripTracker: Rejecting impossible GPS jump: ${distMeters}m in ${timeDiffSec}s (${calculatedSpeed} km/h)"
-                )
+            val timeDiffSec = ((pointTimestamp - lastPoint.timestampMillis) / 1000f)
+            if (timeDiffSec <= 0f || timeDiffSec > 60f) {
+                AppLogger.d(AppLogger.Tag.TRIP, "Ignoring GPS point with invalid timestamp delta: ${timeDiffSec}s")
                 return
             }
+            val derivedSpeed = ((distMeters / timeDiffSec) * 3.6).toFloat()
+            if (derivedSpeed > 180.0f) {
+                _latestGpsSpeedKmh.value = null
+                AppLogger.w(AppLogger.Tag.TRIP, "Rejecting impossible GPS jump: ${distMeters}m in ${timeDiffSec}s (${derivedSpeed} km/h)")
+                return
+            }
+            calculatedSpeed = calculatedSpeed ?: derivedSpeed
+            _latestGpsSpeedKmh.value = calculatedSpeed
 
-            // Only add point if moved more than 5 meters (filters stationary noise at traffic signals)
-            if (distMeters >= 5.0) {
+            // Require meaningful displacement and plausible speed before adding distance.
+            if (distMeters >= 5.0 && (calculatedSpeed ?: 0f) >= 2f) {
                 val newDistKm = _activeTripDistanceKm.value + (distMeters / 1000f).toFloat()
                 _activeTripDistanceKm.value = newDistKm
                 currentPoints.add(
@@ -183,14 +202,16 @@ class TripTrackerImpl(
                         latitude = location.latitude,
                         longitude = location.longitude,
                         speedKmh = calculatedSpeed,
-                        timestampMillis = System.currentTimeMillis()
+                        timestampMillis = pointTimestamp
                     )
                 )
                 _activeRoutePoints.value = currentPoints
 
                 // Vehicle is actively moving: reset stationary counter and accumulate moving time
                 continuousStationarySeconds = 0L
-                continuousMovingDurationSeconds += 5L
+                val movingSeconds = timeDiffSec.toLong().coerceIn(1L, 30L)
+                _activeMovingDurationSeconds.value += movingSeconds
+                continuousMovingDurationSeconds += movingSeconds
 
                 // 2 hours (7200s) of continuous moving driving triggers fatigue alert
                 if (continuousMovingDurationSeconds >= 7200L && !fatigueAlertTriggered) {
@@ -198,12 +219,21 @@ class TripTrackerImpl(
                     val settings = preferencesRepository.settingsFlow.first()
                     if (settings.driverFatigueAlertEnabled && sessionManager.isSessionActive.value) {
                         AppLogger.i(AppLogger.Tag.SESSION, "Triggering 2-hour continuous driving fatigue alert.")
-                        ttsManager?.speak("Driver fatigue warning: You have been actively driving for two continuous hours. Please consider pulling over for a quick rest.")
+                    // Safety alerts may be added through the priority audio channel; no automatic TTS here.
                     }
                 }
             } else {
                 // Stationary: if parked/stopped for > 15 minutes (900 seconds), reset continuous moving time
                 continuousStationarySeconds += 5L
+                currentPoints.add(
+                    RoutePoint(
+                        latitude = location.latitude,
+                        longitude = location.longitude,
+                        speedKmh = calculatedSpeed,
+                        timestampMillis = pointTimestamp
+                    )
+                )
+                _activeRoutePoints.value = currentPoints
                 if (continuousStationarySeconds >= 900L) {
                     continuousMovingDurationSeconds = 0L
                     fatigueAlertTriggered = false
@@ -215,8 +245,8 @@ class TripTrackerImpl(
                 RoutePoint(
                     latitude = location.latitude,
                     longitude = location.longitude,
-                    speedKmh = 0f,
-                    timestampMillis = System.currentTimeMillis()
+                    speedKmh = location.speedKmh?.takeIf { it.isFinite() && it in 0f..180f },
+                    timestampMillis = pointTimestamp
                 )
             )
             _activeRoutePoints.value = currentPoints
@@ -273,13 +303,11 @@ class TripTrackerImpl(
                 )
             }
 
-            val hours = (durationSecs / 3600f).coerceAtLeast(0.01f)
-            val avgSpeed = (distanceKm / hours).coerceAtMost(160f)
-            val maxSpeed = points.maxOfOrNull { it.speedKmh } ?: avgSpeed
-            val ecoScore = if (distanceKm > 0.1f) {
-                (95 - (maxSpeed / 20f).toInt()).coerceIn(75, 98)
-            } else 90
-            val fuelUsed = distanceKm / settings.averageMileageKmpl
+            val movingSeconds = points.zipWithNext()
+                .filter { (_, next) -> next.speedKmh != null && next.speedKmh >= 2f }
+                .sumOf { (previous, next) -> ((next.timestampMillis - previous.timestampMillis) / 1000L).coerceAtLeast(0L) }
+            val avgSpeed = if (movingSeconds > 0L) (distanceKm / (movingSeconds / 3600f)).coerceAtMost(160f) else null
+            val maxSpeed = points.mapNotNull { it.speedKmh }.maxOrNull()
 
             val resolvedStart = startLocationResolvedName ?: "Location unavailable"
             val resolvedEnd = parkedAddress ?: "Location unavailable"
@@ -291,11 +319,10 @@ class TripTrackerImpl(
                 durationMinutes = durationMinutes,
                 avgSpeedKmh = avgSpeed,
                 maxSpeedKmh = maxSpeed,
-                ecoScore = ecoScore,
                 startLocationName = resolvedStart,
                 endLocationName = resolvedEnd,
                 routePoints = points,
-                fuelConsumedLiters = fuelUsed
+                fuelConsumedLiters = null
             )
 
             _latestCompletedTrip.value = report
@@ -307,17 +334,15 @@ class TripTrackerImpl(
                 "TripTracker: Trip completed. Distance: ${report.formattedDistance}, Duration: ${report.formattedDuration}, Parked: ${parkedAddress ?: "Unavailable"}"
             )
 
-            // Trigger Post-Drive Voice Audio Debrief via TTS (only for meaningful drives)
-            if (ttsManager != null && durationSecs >= 15L && distanceKm > 0.05f) {
-                val debriefSpeech = "Trip complete, ${settings.driverName}! You drove ${report.formattedDistance} in ${report.durationMinutes} minutes. Have a wonderful day!"
-                ttsManager.speak(debriefSpeech)
-            }
+            // Post-drive debrief is available on demand; never interrupt media automatically.
         } else {
             AppLogger.d(AppLogger.Tag.SESSION, "TripTracker: Trip too short (${durationSecs}s), discarding.")
         }
 
         _activeTripDurationSeconds.value = 0L
         _activeTripDistanceKm.value = 0.0f
+        _activeMovingDurationSeconds.value = 0L
+        _latestGpsSpeedKmh.value = null
         _activeRoutePoints.value = emptyList()
         fatigueAlertTriggered = false
     }

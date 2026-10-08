@@ -6,6 +6,6 @@ package com.shatrughna.drivemate.data.model
 data class RoutePoint(
     val latitude: Double,
     val longitude: Double,
-    val speedKmh: Float = 0f,
+    val speedKmh: Float? = null,
     val timestampMillis: Long = System.currentTimeMillis()
 )

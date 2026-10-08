@@ -181,15 +181,7 @@ class WakeWordManagerImpl(
             } else {
                 // Direct standalone activation -> Respond "Yes?" and await command
                 _state.value = WakeWordState.WAKE_WORD_DETECTED
-                audioCoordinator?.onTtsStarted()
                 ttsManager.speak("Yes?")
-                audioCoordinator?.onTtsCompleted()
-
-                if (audioCoordinator != null && !audioCoordinator.requestCommandListening()) {
-                    AppLogger.w(AppLogger.Tag.APP, "AudioCoordinator denied command listening.")
-                    resumeWakeWordListening()
-                    return@launch
-                }
 
                 _state.value = WakeWordState.LISTENING_FOR_COMMAND
                 voiceAssistantManager.startListening()

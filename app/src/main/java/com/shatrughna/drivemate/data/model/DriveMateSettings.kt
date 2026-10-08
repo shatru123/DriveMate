@@ -6,22 +6,22 @@ import java.util.Locale
  * Persisted application settings for DriveMate (Production Ready).
  */
 data class DriveMateSettings(
-    val driverName: String = "Shatrughna",
-    val vehicleBrand: String = "TATA",
-    val vehicleModel: String = "Nexon",
-    val vehicleVariant: String = "Creative+ S",
-    val vehicleRegistrationNumber: String = "MH 28 BW 1624",
+    val driverName: String = "",
+    val vehicleBrand: String = "",
+    val vehicleModel: String = "",
+    val vehicleVariant: String = "",
+    val vehicleRegistrationNumber: String = "",
     val vehiclePhotoUri: String? = null,
     val greetingEnabled: Boolean = true,
     val autoGreetingOnAndroidAuto: Boolean = false,
     val greetingStyle: GreetingStyle = GreetingStyle.NORMAL,
-    val customGreetingTemplate: String = "Good {timeOfDay}, {name}. Welcome to your {brand} {model}.",
+    val customGreetingTemplate: String = "Good {timeOfDay}, {name}. Welcome to your vehicle.",
     val speechRate: Float = 1.0f,
     val pitch: Float = 1.0f,
     val languageTag: String = "en-IN",
     val voiceName: String? = null,
     val autoMonitorBluetooth: Boolean = true,
-    val targetBluetoothName: String = "Tata Nexon",
+    val targetBluetoothName: String = "",
     // Dynamic Location & Weather
     val includeWeatherInGreeting: Boolean = true,
     val autoDetectLocation: Boolean = true,
@@ -29,43 +29,48 @@ data class DriveMateSettings(
     val weatherLatitude: Double = 0.0,
     val weatherLongitude: Double = 0.0,
     // High-Precision Odometer & Service Tracking (Strictly decoupled)
-    val manualOdometerKm: Double = 12500.0,
+    val manualOdometerKm: Double? = null,
     val vehicleOdometerKm: Double? = null,
     val gpsTripDistanceKm: Double = 0.0,
-    val odometerKm: Double = vehicleOdometerKm ?: manualOdometerKm,
+    /** Legacy/manual field retained for persisted callers; null means not configured. */
+    val odometerKm: Double? = null,
     val nextServiceKm: Int = 15000,
+    val serviceTargetConfigured: Boolean = false,
     val fuelReminderEnabled: Boolean = false,
-    val homeAddress: String = "Home",
-    val officeAddress: String = "Office",
+    val homeAddress: String = "",
+    val officeAddress: String = "",
     // Smart Companion & Safety Features
     val lastParkedLatitude: Double? = null,
     val lastParkedLongitude: Double? = null,
     val lastParkedAddress: String? = null,
     val lastParkedTimestampMillis: Long? = null,
     val driverFatigueAlertEnabled: Boolean = true,
-    val averageMileageKmpl: Float = 16.5f,
+    val averageMileageKmpl: Float? = null,
     val preferredMusicApp: String = "Spotify",
     // Hands-Free Voice Assistant & Wake Word Settings
     val voiceAssistantEnabled: Boolean = true,
-    val heyDriveMateEnabled: Boolean = true,
+    val heyDriveMateEnabled: Boolean = false,
     val wakeWordSensitivity: Float = 0.5f,
     // V5 Explicit Demo Data Mode
     val isDemoModeEnabled: Boolean = false
 ) {
     val fullVehicleName: String
-        get() = "$vehicleBrand $vehicleModel $vehicleVariant".trim()
+        get() = listOf(vehicleBrand, vehicleModel, vehicleVariant)
+            .filter(String::isNotBlank)
+            .joinToString(" ")
+            .ifBlank { "Connected vehicle" }
 
-    val effectiveOdometerKm: Double
-        get() = vehicleOdometerKm ?: if (manualOdometerKm != 12500.0 && odometerKm == 12500.0) manualOdometerKm else odometerKm
+    val effectiveOdometerKm: Double?
+        get() = vehicleOdometerKm ?: manualOdometerKm ?: odometerKm
 
     val formattedOdometer: String
-        get() = String.format(Locale.US, "%,.1f km", effectiveOdometerKm)
+        get() = effectiveOdometerKm?.let { String.format(Locale.US, "%,.1f km", it) } ?: "Odometer unavailable"
 
     val normalizedRegistrationNumber: String
         get() = normalizeRegistration(vehicleRegistrationNumber)
 
-    val remainingServiceKm: Double
-        get() = (nextServiceKm.toDouble() - effectiveOdometerKm).coerceAtLeast(0.0)
+    val remainingServiceKm: Double?
+        get() = if (serviceTargetConfigured) effectiveOdometerKm?.let { (nextServiceKm - it).coerceAtLeast(0.0) } else null
 
     val hasParkedLocation: Boolean
         get() = lastParkedLatitude != null && lastParkedLongitude != null

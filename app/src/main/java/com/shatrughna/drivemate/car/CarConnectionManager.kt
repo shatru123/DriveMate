@@ -135,7 +135,7 @@ class AndroidAutoCarConnectionManager(
         if (isSimulating) {
             _connectionState.value = CarConnectionState.Connected(
                 connectionType = CarConnectionType.SIMULATED,
-                deviceOrVehicleName = "Tata Nexon (Simulated)",
+                deviceOrVehicleName = "Simulated vehicle",
                 isBluetoothConnected = btConnected,
                 activeBluetoothDeviceName = btName
             )
@@ -146,7 +146,7 @@ class AndroidAutoCarConnectionManager(
             CarConnection.CONNECTION_TYPE_PROJECTION -> {
                 _connectionState.value = CarConnectionState.Connected(
                     connectionType = CarConnectionType.ANDROID_AUTO_PROJECTION,
-                    deviceOrVehicleName = "Tata Nexon (Android Auto)",
+                    deviceOrVehicleName = "Connected vehicle (Android Auto)",
                     isBluetoothConnected = btConnected,
                     activeBluetoothDeviceName = btName
                 )
@@ -154,7 +154,7 @@ class AndroidAutoCarConnectionManager(
             CarConnection.CONNECTION_TYPE_NATIVE -> {
                 _connectionState.value = CarConnectionState.Connected(
                     connectionType = CarConnectionType.ANDROID_AUTOMOTIVE_NATIVE,
-                    deviceOrVehicleName = "Tata Nexon Automotive OS",
+                    deviceOrVehicleName = "Connected vehicle (Android Automotive)",
                     isBluetoothConnected = btConnected,
                     activeBluetoothDeviceName = btName
                 )

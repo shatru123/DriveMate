@@ -194,7 +194,7 @@ fun ExpenseScreen(
                                         color = TextPrimary
                                     )
                                     Text(
-                                        text = "Tata Nexon Creative+ S",
+                                        text = "Vehicle expenses",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = TextSecondary
                                     )
@@ -328,7 +328,7 @@ fun ExpenseScreen(
                                 color = TextPrimary
                             )
                             Text(
-                                text = "Track petrol fill-ups, Fastag tolls, parking fees, insurance renewals, and accessory costs for your Nexon. DriveMate calculates your real running cost per km.",
+                                text = "Track fuel fill-ups, tolls, parking fees, insurance renewals, and accessory costs. DriveMate calculates your real running cost per km.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = TextSecondary,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center

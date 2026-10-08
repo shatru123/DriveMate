@@ -73,10 +73,10 @@ class GreetingControllerImpl(
         scope.launch {
             sessionManager.greetingTriggerEvents.collectLatest { session ->
                 val settings = preferencesRepository.settingsFlow.first()
-                if (session.connectionState.isAndroidAutoConnected && !settings.autoGreetingOnAndroidAuto) {
+                if (session.connectionState.isAndroidAutoConnected) {
                     AppLogger.i(
                         AppLogger.Tag.GREETING,
-                        "Android Auto connected: Automatic welcome greeting disabled by default to ensure uninterrupted car media playback (Spotify)."
+                        "Android Auto session: automatic welcome greeting suppressed to protect active media playback."
                     )
                     return@collectLatest
                 }

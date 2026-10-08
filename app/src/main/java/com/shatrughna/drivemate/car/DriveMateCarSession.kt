@@ -15,17 +15,26 @@ import com.shatrughna.drivemate.util.AppLogger
  */
 class DriveMateCarSession : Session() {
 
+    private var lifecycleObserverAttached = false
+
     override fun onCreateScreen(intent: Intent): Screen {
         AppLogger.i(AppLogger.TAG_ANDROID_AUTO, "DriveMateCarSession.onCreateScreen - initializing car session")
         val app = carContext.applicationContext as? DriveMateApplication
         app?.vehicleDataCoordinator?.attachCarContext(carContext)
 
-        lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onDestroy(owner: LifecycleOwner) {
-                AppLogger.i(AppLogger.TAG_ANDROID_AUTO, "DriveMateCarSession onDestroy - releasing car session resources")
-                app?.vehicleDataCoordinator?.detachCarContext()
-            }
-        })
+        if (!lifecycleObserverAttached) {
+            lifecycleObserverAttached = true
+            lifecycle.addObserver(object : DefaultLifecycleObserver {
+                override fun onDestroy(owner: LifecycleOwner) {
+                    AppLogger.i(AppLogger.TAG_ANDROID_AUTO, "DriveMateCarSession onDestroy - releasing car session resources")
+                    app?.vehicleDataCoordinator?.detachCarContext()
+                    app?.voiceAssistantManager?.release()
+                    app?.wakeWordEngine?.stop()
+                    app?.ttsManager?.stop()
+                    app?.audioInputCoordinator?.abandonAudioFocus()
+                }
+            })
+        }
 
         return DriveMateHomeScreen(carContext)
     }

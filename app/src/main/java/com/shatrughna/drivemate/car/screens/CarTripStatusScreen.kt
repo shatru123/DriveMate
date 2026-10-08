@@ -66,36 +66,44 @@ class CarTripStatusScreen(carContext: CarContext) : Screen(carContext) {
         val stats = app.tripTracker.tripStats.value
         val durationMins = stats.activeTripDurationSeconds / 60
         val distKm = stats.activeTripDistanceKm
-        val distText = if (distKm > 0.05f) String.format("%.1f km", distKm) else "0.0 km"
+        val hasActiveDrive = stats.activeTripDurationSeconds > 0L || distKm > 0.05f
+        val distText = if (hasActiveDrive) String.format("%.1f km", distKm) else "No active drive"
 
-        val hours = (stats.activeTripDurationSeconds / 3600f).coerceAtLeast(0.01f)
-        val avgSpeed = if (distKm > 0.05f) (distKm / hours).toInt() else 0
+        val hours = (stats.activeMovingDurationSeconds / 3600f).coerceAtLeast(0.01f)
+        val avgSpeed = if (distKm > 0.05f && stats.activeMovingDurationSeconds > 0L) (distKm / hours).toInt() else null
 
         // 1. LIVE VEHICLE
         val speedStr = when {
             currentTelemetry.speedAvailability == TelemetryAvailability.LIVE && currentTelemetry.speedKmh != null ->
-                "${currentTelemetry.speedKmh?.toInt()} km/h"
-            currentTelemetry.speedKmh != null ->
-                "${currentTelemetry.speedKmh?.toInt()} km/h"
-            else -> "Idle"
+                "${currentTelemetry.speedKmh!!.toInt()} km/h • ${currentTelemetry.speedSource.displayName}"
+            currentTelemetry.speedAvailability == TelemetryAvailability.STALE && currentTelemetry.speedKmh != null ->
+                "${currentTelemetry.speedKmh!!.toInt()} km/h • DATA STALE"
+            else -> "Speed unavailable"
         }
         val odoStr = when {
-            currentTelemetry.isAuthoritativeOdometer ->
-                "${String.format("%,.1f", currentTelemetry.vehicleOdometerKm)} km (Car Odometer)"
-            else ->
-                "${String.format("%,.1f", currentTelemetry.manualOdometerKm)} km (Calibrated)"
+            currentTelemetry.isAuthoritativeOdometer && currentTelemetry.vehicleOdometerKm != null ->
+                "${String.format("%,.1f", currentTelemetry.vehicleOdometerKm)} km (Live Vehicle)"
+            currentTelemetry.manualOdometerKm != null ->
+                "${String.format("%,.1f", currentTelemetry.manualOdometerKm)} km (Manual)"
+            else -> "Odometer unavailable"
         }
         val liveVehicleText = "Speed: $speedStr • Odometer: $odoStr"
 
         // 2. CURRENT DRIVE
-        val currentDriveText = "$distText (GPS) • $durationMins min • Avg $avgSpeed km/h"
+        val currentDriveText = if (hasActiveDrive) {
+            "$distText (GPS) • $durationMins min • Avg ${avgSpeed?.let { "$it km/h" } ?: "unavailable"}"
+        } else "No active drive"
 
         // 3. TODAY
-        val todayText = "${String.format("%.1f", stats.todayTotalDistanceKm)} km GPS distance across ${stats.todayTripsCount} trips"
+        val todayText = if (stats.todayTripsCount > 0) {
+            "${String.format("%.1f", stats.todayTotalDistanceKm)} km GPS distance across ${stats.todayTripsCount} trips"
+        } else "No trips today"
 
         // 4. SERVICE SCHEDULE
-        val remainingService = (currentSettings.nextServiceKm - currentTelemetry.effectiveOdometerKm).coerceAtLeast(0.0)
-        val serviceText = "${String.format("%,.0f", remainingService)} km remaining (Next: ${String.format("%,.0f", currentSettings.nextServiceKm)} km)"
+        val serviceText = currentTelemetry.effectiveOdometerKm?.takeIf { currentSettings.serviceTargetConfigured }?.let {
+            val remainingService = (currentSettings.nextServiceKm - it).coerceAtLeast(0.0)
+            "${String.format("%,.0f", remainingService)} km remaining (Next: ${currentSettings.nextServiceKm} km)"
+        } ?: "Service distance unavailable"
 
         val pane = Pane.Builder().apply {
             addRow(

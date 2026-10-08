@@ -11,7 +11,7 @@ class Obd2VehicleDataProvider : VehicleTelemetryProvider {
 
     private val _telemetry = MutableStateFlow(
         VehicleTelemetry(
-            isCarConnected = false,
+            androidAutoConnected = false,
             speedSource = TelemetrySource.OBD2_BLE,
             speedAvailability = TelemetryAvailability.NOT_CONNECTED,
             odometerSource = TelemetrySource.OBD2_BLE,

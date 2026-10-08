@@ -33,6 +33,7 @@ class VehicleTelemetryTest {
     @Test
     fun testOdometerDecouplingGpsNeverMutatesOdometer() = runTest {
         val coordinator = VehicleDataCoordinator()
+        assertNull(coordinator.telemetry.value.manualOdometerKm)
         coordinator.updateManualOdometer(12500.0)
 
         // GPS trip updates
@@ -45,10 +46,35 @@ class VehicleTelemetryTest {
         assertEquals(35.2, telemetry.tripGpsDistanceKm, 0.01)
 
         // Manual calibrated odometer NEVER altered by GPS trip
-        assertEquals(12500.0, telemetry.manualOdometerKm, 0.01)
+        assertEquals(12500.0, telemetry.manualOdometerKm!!, 0.01)
         assertNull(telemetry.vehicleOdometerKm)
-        assertEquals(12500.0, telemetry.effectiveOdometerKm, 0.01)
+        assertEquals(12500.0, telemetry.effectiveOdometerKm!!, 0.01)
         assertFalse(telemetry.isAuthoritativeOdometer)
+    }
+
+    @Test
+    fun freshCoordinatorHasNoFabricatedVehicleValues() = runTest {
+        val telemetry = VehicleDataCoordinator().telemetry.value
+        assertNull(telemetry.manualOdometerKm)
+        assertNull(telemetry.vehicleOdometerKm)
+        assertNull(telemetry.speedKmh)
+        assertNull(telemetry.fuelLevelPercent)
+        assertNull(telemetry.rangeRemainingKm)
+        assertFalse(telemetry.androidAutoConnected)
+        assertFalse(telemetry.vehicleTelemetryConnected)
+    }
+
+    @Test
+    fun gpsSpeedIsExplicitlyMarkedAsEstimateAndClearsWithoutZeroFallback() = runTest {
+        val coordinator = VehicleDataCoordinator()
+        coordinator.updateGpsSpeed(68f)
+        assertEquals(TelemetrySource.PHONE_GPS, coordinator.telemetry.value.speedSource)
+        assertEquals(TelemetryAvailability.LIVE, coordinator.telemetry.value.speedAvailability)
+        assertEquals(68f, coordinator.telemetry.value.speedKmh!!, 0.01f)
+
+        coordinator.updateGpsSpeed(null)
+        assertNull(coordinator.telemetry.value.speedKmh)
+        assertEquals(TelemetryAvailability.UNAVAILABLE, coordinator.telemetry.value.speedAvailability)
     }
 
     @Test
@@ -60,7 +86,7 @@ class VehicleTelemetryTest {
             manualOdometerKm = 12500.0
         )
 
-        assertEquals(12845.6, telemetryWithDirectOdo.effectiveOdometerKm, 0.01)
+        assertEquals(12845.6, telemetryWithDirectOdo.effectiveOdometerKm!!, 0.01)
         assertTrue(telemetryWithDirectOdo.isAuthoritativeOdometer)
     }
 

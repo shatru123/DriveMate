@@ -11,8 +11,8 @@ data class MonthlyDrivingSummary(
     val totalDistanceKm: Float,
     val totalTrips: Int,
     val totalDurationMinutes: Long,
-    val avgSpeedKmh: Float,
-    val estimatedFuelConsumedLiters: Float,
-    val avgEcoScore: Int,
+    val avgSpeedKmh: Float?,
+    val estimatedFuelConsumedLiters: Float?,
+    val avgEcoScore: Int?,
     val weeklyMetrics: List<WeeklyDrivingMetric>
 )

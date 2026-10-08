@@ -73,9 +73,9 @@ object AiCarInsightsEngine {
         }
 
         // 2. Check Service Urgency
-        val serviceUrgency = serviceSchedule.urgency(currentOdometerKm)
-        val kmLeft = serviceSchedule.kmRemaining(currentOdometerKm)
-        val daysLeft = serviceSchedule.daysRemaining()
+        val serviceUrgency = if (serviceSchedule.isConfigured) serviceSchedule.urgency(currentOdometerKm) else null
+        val kmLeft = if (serviceSchedule.isConfigured) serviceSchedule.kmRemaining(currentOdometerKm) else null
+        val daysLeft = if (serviceSchedule.isConfigured) serviceSchedule.daysRemaining() else null
 
         when (serviceUrgency) {
             ServiceUrgency.OVERDUE -> {
@@ -83,7 +83,7 @@ object AiCarInsightsEngine {
                     AiCarInsight(
                         id = "insight_service_overdue",
                         title = "Service Overdue",
-                        message = "Your scheduled service at ${serviceSchedule.nextServiceOdometerKm.toInt()} km is overdue. Visit Tata Motors workshop.",
+                        message = "Your scheduled service at ${serviceSchedule.nextServiceOdometerKm.toInt()} km is overdue. Visit your service provider.",
                         category = InsightCategory.MAINTENANCE,
                         priority = InsightPriority.HIGH,
                         targetScreen = "Maintenance"
@@ -95,7 +95,7 @@ object AiCarInsightsEngine {
                     AiCarInsight(
                         id = "insight_service_due_now",
                         title = "Periodic Service Due Soon",
-                        message = "Next service due in ${kmLeft.toInt()} km or $daysLeft days. Book appointment at Tata Motors service center.",
+                        message = "Next service due in ${kmLeft!!.toInt()} km or $daysLeft days.",
                         category = InsightCategory.MAINTENANCE,
                         priority = InsightPriority.HIGH,
                         targetScreen = "Maintenance"
@@ -107,7 +107,7 @@ object AiCarInsightsEngine {
                     AiCarInsight(
                         id = "insight_service_due_soon",
                         title = "Service Approaching",
-                        message = "${kmLeft.toInt()} km remaining until next ${serviceSchedule.intervalKm} km periodic service.",
+                        message = "${kmLeft!!.toInt()} km remaining until the next service.",
                         category = InsightCategory.MAINTENANCE,
                         priority = InsightPriority.MEDIUM,
                         targetScreen = "Maintenance"
@@ -116,6 +116,9 @@ object AiCarInsightsEngine {
             }
             ServiceUrgency.ON_SCHEDULE -> {
                 // Good health
+            }
+            null -> {
+                // No service data is available.
             }
         }
 
@@ -139,7 +142,7 @@ object AiCarInsightsEngine {
         }
 
         // 4. Driving Habit & Eco Score Insights
-        if (drivingSummary.avgEcoScore >= 85) {
+        if (drivingSummary.totalTrips > 0 && drivingSummary.avgEcoScore?.let { it >= 85 } == true) {
             insights.add(
                 AiCarInsight(
                     id = "insight_eco_driving",

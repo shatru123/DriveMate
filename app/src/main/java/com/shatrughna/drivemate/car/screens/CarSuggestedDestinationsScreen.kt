@@ -42,7 +42,7 @@ class CarSuggestedDestinationsScreen(
                         .setTitle(dest.name)
                         .addText(subtitle)
                         .setOnClickListener {
-                            AppLogger.i(AppLogger.Tag.APP, "Car screen selected suggested destination: ${dest.name}")
+                            AppLogger.i(AppLogger.Tag.APP, "Car screen selected a suggested destination")
                             app.destinationManager.launchNavigation(carContext, dest)
                             screenManager.pop()
                         }

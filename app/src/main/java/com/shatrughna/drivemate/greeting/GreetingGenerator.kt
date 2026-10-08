@@ -112,14 +112,15 @@ class GreetingGeneratorImpl : GreetingGenerator {
         zoneId: ZoneId
     ): String {
         val name = driverName.ifBlank { "Driver" }
-        val brand = vehicleBrand.ifBlank { "TATA" }
-        val model = vehicleModel.ifBlank { "Nexon" }
-        val variant = vehicleVariant.ifBlank { "Creative+ S" }
+        val brand = vehicleBrand.trim()
+        val model = vehicleModel.trim()
+        val variant = vehicleVariant.trim()
+        val vehicle = listOf(brand, model).filter { it.isNotBlank() }.joinToString(" ").ifBlank { "vehicle" }
         val timePeriod = getTimePeriod(timestampEpochMillis, zoneId)
 
         return when (style) {
             GreetingStyle.SHORT -> {
-                "Hey $name, welcome to your $model."
+                "Hey $name, welcome to your $vehicle."
             }
 
             GreetingStyle.NORMAL -> {
@@ -127,17 +128,17 @@ class GreetingGeneratorImpl : GreetingGenerator {
                 val weatherPhrase = if (hasWeather) " It's ${weatherInfo.speechFormattedDescription}." else ""
                 when (timePeriod) {
                     TimePeriod.MORNING -> {
-                        "Good morning, $name.$weatherPhrase Welcome to your $brand $model. Have a safe drive."
+                        "Good morning, $name.$weatherPhrase Welcome to your $vehicle. Have a safe drive."
                     }
                     TimePeriod.AFTERNOON -> {
                         val afternoonWeather = if (hasWeather) " It's ${weatherInfo.displayTemperature} outside." else ""
-                        "Good afternoon, $name.$afternoonWeather Welcome back to your $brand $model. Have a pleasant journey."
+                        "Good afternoon, $name.$afternoonWeather Welcome back to your $vehicle. Have a pleasant journey."
                     }
                     TimePeriod.EVENING -> {
-                        "Good evening, $name. Welcome back to your $model. Drive safely."
+                        "Good evening, $name. Welcome back to your $vehicle. Drive safely."
                     }
                     TimePeriod.NIGHT -> {
-                        "Good evening, $name. Welcome to your $brand $model. Please drive safely."
+                        "Good evening, $name. Welcome to your $vehicle. Please drive safely."
                     }
                 }
             }
@@ -147,7 +148,7 @@ class GreetingGeneratorImpl : GreetingGenerator {
                 val salutation = "${timePeriod.salutation}, $name."
                 val weatherPhrase = if (hasWeather) " It is currently ${weatherInfo.speechFormattedDescription}." else ""
                 val reminderPhrase = if (!careReminder.isNullOrBlank()) " $careReminder" else ""
-                "$salutation$weatherPhrase Welcome back to your $brand $model $variant. Your journey is ready.$reminderPhrase Have a safe and pleasant drive."
+                "$salutation$weatherPhrase Welcome back to your $vehicle${if (variant.isNotBlank()) " $variant" else ""}. Your journey is ready.$reminderPhrase Have a safe and pleasant drive."
             }
 
             GreetingStyle.CUSTOM -> {

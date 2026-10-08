@@ -37,7 +37,7 @@ class CarRecentDestinationsScreen(carContext: CarContext) : Screen(carContext) {
                         .setTitle(dest.name)
                         .addText(subtitle)
                         .setOnClickListener {
-                            AppLogger.i(AppLogger.Tag.APP, "Car screen launching recent destination: ${dest.name}")
+                            AppLogger.i(AppLogger.Tag.APP, "Car screen launching a recent destination")
                             app.destinationManager.launchNavigation(carContext, dest)
                             screenManager.pop()
                         }

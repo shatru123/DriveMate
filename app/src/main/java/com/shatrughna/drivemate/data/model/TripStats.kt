@@ -5,6 +5,7 @@ package com.shatrughna.drivemate.data.model
  */
 data class TripStats(
     val activeTripDurationSeconds: Long = 0L,
+    val activeMovingDurationSeconds: Long = 0L,
     val activeTripDistanceKm: Float = 0.0f,
     val todayTripsCount: Int = 0,
     val todayTotalDistanceKm: Float = 0.0f,

@@ -82,7 +82,7 @@ class TripHistoryRepositoryImpl(
                         RoutePoint(
                             latitude = pObj.getDouble("lat"),
                             longitude = pObj.getDouble("lon"),
-                            speedKmh = pObj.optDouble("speed", 0.0).toFloat(),
+                            speedKmh = if (pObj.has("speed") && !pObj.isNull("speed")) pObj.getDouble("speed").toFloat() else null,
                             timestampMillis = pObj.optLong("time", 0L)
                         )
                     )
@@ -95,13 +95,13 @@ class TripHistoryRepositoryImpl(
                         endTimeMillis = obj.getLong("endTime"),
                         distanceKm = obj.getDouble("distanceKm").toFloat(),
                         durationMinutes = obj.getLong("durationMinutes"),
-                        avgSpeedKmh = obj.getDouble("avgSpeedKmh").toFloat(),
-                        maxSpeedKmh = obj.optDouble("maxSpeedKmh", 0.0).toFloat(),
-                        ecoScore = obj.optInt("ecoScore", 90),
-                        startLocationName = obj.optString("startLocation", "Origin"),
-                        endLocationName = obj.optString("endLocation", "Destination"),
+                        avgSpeedKmh = if (obj.has("avgSpeedKmh") && !obj.isNull("avgSpeedKmh")) obj.getDouble("avgSpeedKmh").toFloat() else null,
+                        maxSpeedKmh = if (obj.has("maxSpeedKmh") && !obj.isNull("maxSpeedKmh")) obj.getDouble("maxSpeedKmh").toFloat() else null,
+                        ecoScore = if (obj.has("ecoScore") && !obj.isNull("ecoScore")) obj.getInt("ecoScore") else null,
+                        startLocationName = obj.optString("startLocation", "Location unavailable"),
+                        endLocationName = obj.optString("endLocation", "Location unavailable"),
                         routePoints = routePoints,
-                        fuelConsumedLiters = obj.optDouble("fuelConsumedLiters", 0.0).toFloat()
+                        fuelConsumedLiters = if (obj.has("fuelConsumedLiters") && !obj.isNull("fuelConsumedLiters")) obj.getDouble("fuelConsumedLiters").toFloat() else null
                     )
                 )
             }
@@ -123,12 +123,12 @@ class TripHistoryRepositoryImpl(
                     put("endTime", trip.endTimeMillis)
                     put("distanceKm", trip.distanceKm.toDouble())
                     put("durationMinutes", trip.durationMinutes)
-                    put("avgSpeedKmh", trip.avgSpeedKmh.toDouble())
-                    put("maxSpeedKmh", trip.maxSpeedKmh.toDouble())
-                    put("ecoScore", trip.ecoScore)
+                    trip.avgSpeedKmh?.let { put("avgSpeedKmh", it.toDouble()) }
+                    trip.maxSpeedKmh?.let { put("maxSpeedKmh", it.toDouble()) }
+                    trip.ecoScore?.let { put("ecoScore", it) }
                     put("startLocation", trip.startLocationName)
                     put("endLocation", trip.endLocationName)
-                    put("fuelConsumedLiters", trip.fuelConsumedLiters.toDouble())
+                    trip.fuelConsumedLiters?.let { put("fuelConsumedLiters", it.toDouble()) }
 
                     val pointsArray = JSONArray()
                     for (point in trip.routePoints) {
@@ -136,7 +136,7 @@ class TripHistoryRepositoryImpl(
                             JSONObject().apply {
                                 put("lat", point.latitude)
                                 put("lon", point.longitude)
-                                put("speed", point.speedKmh.toDouble())
+                                point.speedKmh?.let { put("speed", it.toDouble()) }
                                 put("time", point.timestampMillis)
                             }
                         )

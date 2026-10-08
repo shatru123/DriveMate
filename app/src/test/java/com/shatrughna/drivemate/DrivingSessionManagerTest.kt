@@ -96,6 +96,10 @@ class DrivingSessionManagerTest {
         sessionManager.onConnectionStateChanged(connectedState1)
         advanceUntilIdle()
 
+        // Projection is passive; a driving session needs an explicit trigger.
+        assertFalse(sessionManager.isSessionActive.value)
+        assertTrue(sessionManager.startDrivingSession())
+        advanceUntilIdle()
         assertTrue(sessionManager.isSessionActive.value)
         val firstSessionId = sessionManager.currentSessionId.value
         assertNotNull(firstSessionId)
@@ -144,7 +148,11 @@ class DrivingSessionManagerTest {
         sessionManager.onConnectionStateChanged(newConnectedState)
         advanceUntilIdle()
 
-        // Greeting MUST trigger again for the new drive with new session ID
+        // Reconnection remains passive until the next driving trigger.
+        assertFalse(sessionManager.isSessionActive.value)
+        assertTrue(sessionManager.startDrivingSession())
+        advanceUntilIdle()
+        // The session event is still deduplicated within this new drive.
         assertTrue(sessionManager.isSessionActive.value)
         val secondSessionId = sessionManager.currentSessionId.value
         assertNotNull(secondSessionId)

@@ -21,7 +21,7 @@ class CarDestinationSearchScreen(carContext: CarContext) : Screen(carContext) {
 
     private val searchCategories = listOf(
         "Nearby Petrol Pump" to "Find nearest fuel station",
-        "Tata Motors Service Center" to "Authorized service workshop",
+        "Vehicle Service Center" to "Nearby service workshop",
         "Coffee & Cafes" to "Quick morning refreshments",
         "Restaurants & Food" to "Dining and takeaways near me",
         "Airport" to "Fastest route to nearest airport",

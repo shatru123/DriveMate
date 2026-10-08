@@ -312,7 +312,7 @@ fun VoiceAssistantSheet(
                 is VoiceAssistantState.Error -> {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            text = state.message,
+                            text = "Voice input is unavailable. Check microphone permission and try again.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = NexonRedAccent,
                             textAlign = TextAlign.Center

@@ -146,7 +146,7 @@ class DriveMateSessionService : Service() {
                 "DriveMate Active Driving Session",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Shows live connection status to your Tata Nexon"
+                description = "Shows live DriveMate driving-session status"
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager?.createNotificationChannel(channel)
@@ -163,7 +163,7 @@ class DriveMateSessionService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("DriveMate • Tata Nexon")
+            .setContentTitle("DriveMate • Driving session")
             .setContentText(statusText)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentIntent(pendingIntent)

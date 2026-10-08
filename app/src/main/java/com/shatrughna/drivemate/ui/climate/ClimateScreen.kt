@@ -104,7 +104,7 @@ fun ClimateScreen(
                             color = TextPrimary
                         )
                         Text(
-                            text = "Tata Nexon FATC HVAC System",
+                            text = "Vehicle HVAC system",
                             style = MaterialTheme.typography.labelSmall,
                             color = TextMuted
                         )

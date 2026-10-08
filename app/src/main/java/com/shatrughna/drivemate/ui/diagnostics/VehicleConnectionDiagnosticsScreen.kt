@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Info
@@ -69,6 +70,7 @@ fun VehicleConnectionDiagnosticsScreen(
     audioState: AudioOwnerState,
     onNavigateBack: () -> Unit,
     onRefresh: () -> Unit,
+    onCopyDiagnostics: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Scaffold(
@@ -108,6 +110,12 @@ fun VehicleConnectionDiagnosticsScreen(
                     }
                 },
                 actions = {
+                    IconButton(
+                        onClick = onCopyDiagnostics,
+                        modifier = Modifier.rememberPressScale()
+                    ) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = "Copy diagnostics", tint = NexonCyanPrimary)
+                    }
                     IconButton(
                         onClick = onRefresh,
                         modifier = Modifier.rememberPressScale()
@@ -211,39 +219,44 @@ fun VehicleConnectionDiagnosticsScreen(
                             )
                         }
                         StatusPill(
-                            text = if (isCarConnected) "ACTIVE" else "UNAVAILABLE",
-                            color = if (isCarConnected) NexonCyanPrimary else TextMuted
+                            text = if (telemetry.vehicleTelemetryConnected) "AVAILABLE" else "UNAVAILABLE",
+                            color = if (telemetry.vehicleTelemetryConnected) NexonCyanPrimary else TextMuted
                         )
                     }
 
                     DiagnosticRow(
                         label = "Live Speed",
-                        value = telemetry.speedKmh?.let { String.format("%.0f km/h", it) } ?: "Unavailable",
-                        detail = "Source: ${telemetry.speedSource.displayName} (${telemetry.speedAvailability.label})"
+                        value = if (telemetry.speedAvailability == TelemetryAvailability.LIVE || telemetry.speedAvailability == TelemetryAvailability.STALE) {
+                            telemetry.speedKmh?.let { String.format("%.0f km/h", it) } ?: "Unavailable"
+                        } else "Unavailable",
+                        detail = "Source: ${telemetry.speedSource.displayName} • ${telemetry.speedAvailability.label} • ${telemetry.speedTimestampMillis?.let { "updated ${((System.currentTimeMillis() - it) / 1000).coerceAtLeast(0)}s ago" } ?: "no update"}"
                     )
 
                     DiagnosticRow(
                         label = "Authoritative Odometer",
-                        value = telemetry.vehicleOdometerKm?.let { String.format("%,.1f km", it) } ?: "Unavailable",
-                        detail = if (telemetry.isAuthoritativeOdometer) "Direct CarInfo API (Live)" else "Requires Android Auto Car Hardware"
+                        value = if (telemetry.odometerAvailability == TelemetryAvailability.LIVE || telemetry.odometerAvailability == TelemetryAvailability.STALE) {
+                            telemetry.vehicleOdometerKm?.let { String.format("%,.1f km", it) } ?: "Unavailable"
+                        } else "Unavailable",
+                        detail = "Source: ${telemetry.odometerSource.displayName} • ${telemetry.odometerAvailability.label}"
                     )
 
                     DiagnosticRow(
                         label = "Calibrated Odometer Fallback",
-                        value = String.format("%,.1f km", telemetry.manualOdometerKm),
+                        value = telemetry.manualOdometerKm?.let { String.format("%,.1f km", it) } ?: "Not configured",
                         detail = "Manual calibration from settings"
                     )
 
                     DiagnosticRow(
                         label = "Current Trip (GPS)",
-                        value = String.format("%.2f km", telemetry.tripGpsDistanceKm),
+                        value = telemetry.tripGpsDistanceKm.takeIf { it > 0.0 }?.let { String.format("%.2f km", it) } ?: "No active trip",
                         detail = "Isolated GPS distance • Never alters vehicle odometer"
                     )
 
                     DiagnosticRow(
                         label = "Fuel / Range",
-                        value = "${telemetry.fuelLevelPercent?.let { String.format("%.0f%%", it) } ?: "Unavailable"} • ${telemetry.rangeRemainingKm?.let { String.format("%.0f km", it) } ?: "Unavailable"}",
-                        detail = "Source: ${telemetry.fuelSource.displayName} (${telemetry.fuelAvailability.label})"
+                        value = "${telemetry.fuelLevelPercent?.takeIf { telemetry.fuelAvailability == TelemetryAvailability.LIVE }?.let { String.format("%.0f%%", it) } ?: "Fuel unavailable"} • " +
+                            "${telemetry.rangeRemainingKm?.takeIf { telemetry.rangeAvailability == TelemetryAvailability.LIVE }?.let { String.format("%.0f km", it) } ?: "Range unavailable"}",
+                        detail = "Fuel: ${telemetry.fuelSource.displayName} (${telemetry.fuelAvailability.label}) • Range: ${telemetry.fuelSource.displayName} (${telemetry.rangeAvailability.label})"
                     )
                 }
             }
@@ -267,7 +280,7 @@ fun VehicleConnectionDiagnosticsScreen(
                     DiagnosticRow(
                         label = "TPMS (Tire Pressure)",
                         value = "Unavailable through Android Auto",
-                        detail = "Tata Nexon factory wheel sensors display directly on instrument cluster. No fake PSI fabricated."
+                        detail = "Factory wheel sensors display on the instrument cluster. No fake PSI is shown."
                     )
 
                     DiagnosticRow(

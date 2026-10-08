@@ -52,8 +52,7 @@ class CarVoiceAssistantScreen(carContext: CarContext) : Screen(carContext) {
             }
         }
 
-        // Push-to-talk: Trigger single voice request on entry
-        app.voiceAssistantManager.startListening()
+        // Opening the screen is passive. Microphone access starts only after the driver taps Speak.
     }
 
     override fun onGetTemplate(): Template {
@@ -61,7 +60,7 @@ class CarVoiceAssistantScreen(carContext: CarContext) : Screen(carContext) {
             is VoiceAssistantState.Listening -> "Listening... Speak your command now.\n\nExamples:\n• \"Play music on Spotify\"\n• \"Navigate to office\"\n• \"What's the weather?\""
             is VoiceAssistantState.Processing -> "Processing: \"${s.recognizedText}\"..."
             is VoiceAssistantState.Responding -> "Responding: \"${s.speechText}\""
-            is VoiceAssistantState.Error -> "Error: ${s.message}\nTap Speak to retry."
+            is VoiceAssistantState.Error -> "Voice input unavailable.\nTap Speak to retry."
             is VoiceAssistantState.Idle -> "DriveMate Voice Assistant ready.\nTap Speak to begin."
         }
 

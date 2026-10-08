@@ -1,20 +1,20 @@
 # DriveMate 🚗
 
-> **Your Personal Driving Companion** for the **Tata Nexon Creative+ S**
+> **Your Personal Driving Companion** with truthful, profile-aware vehicle telemetry
 
 [![Android](https://img.shields.io/badge/Platform-Android_8.0+-3DDC84.svg?style=flat&logo=android)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF.svg?style=flat&logo=kotlin)](https://kotlinlang.org)
 [![Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4.svg?style=flat&logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
 [![Android Auto](https://img.shields.io/badge/Android%20for%20Cars-1.7.0-0F9D58.svg?style=flat&logo=androidauto)](https://developer.android.com/training/cars)
-[![Tests](https://img.shields.io/badge/Unit%20Tests-100%25%20Passing-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/Tests-run%20locally-lightgrey.svg)]()
 
 ---
 
 ## 📖 Overview
 
-**DriveMate** transforms your everyday commute into a connected, personalized automotive experience. Built specifically for the **Tata Nexon Creative+ S** driven by **Shatrughna**, DriveMate recognizes when your smartphone connects to the vehicle / Android Auto and greets you with an intelligent, time-aware audio welcome:
+**DriveMate** is a connected, profile-aware automotive companion. It recognizes Android Auto projection separately from vehicle telemetry, uses only values supplied by Car Hardware/OBD2/GPS or explicitly entered by the user, and keeps Android Auto passive until a legitimate driving-session trigger occurs.
 
-> *"Hey Shatrughna, welcome to your Tata Nexon. Have a safe and pleasant drive."*
+Vehicle identity, registration, odometer, service targets, and greetings are populated from the user's profile; fresh installs show unavailable states instead of sample vehicle data.
 
 Designed with an automotive-inspired Material 3 interface, clean architecture, and complete adherence to official Google Android for Cars safety guidelines, DriveMate lays the foundation for a future autonomous AI driving assistant.
 
@@ -24,14 +24,11 @@ Designed with an automotive-inspired Material 3 interface, clean architecture, a
 
 1. **Personalized Welcome Greeting**
    - **Time-Aware Salutations**:
-     - **Morning (05:00 - 11:59)**: *"Good morning, Shatrughna. Welcome to your Tata Nexon. Have a safe drive."*
-     - **Afternoon (12:00 - 16:59)**: *"Good afternoon, Shatrughna. Welcome back to your Tata Nexon. Have a pleasant journey."*
-     - **Evening (17:00 - 21:59)**: *"Good evening, Shatrughna. Welcome back to your Nexon. Drive safely."*
-     - **Night (22:00 - 04:59)**: *"Good evening, Shatrughna. Welcome to your Tata Nexon. Please drive safely."*
+     - Uses the configured driver and vehicle profile when available; otherwise says "Driver" and "vehicle".
    - **Flexible Greeting Styles**:
-     - **Short**: Quick and punchy (*"Hey Shatrughna, welcome to your Nexon."*).
+     - **Short**: Quick and punchy.
      - **Normal**: Balanced, time-aware greeting.
-     - **Detailed**: Comprehensive variant greeting (*"Good evening, Shatrughna. Welcome back to your Tata Nexon Creative+ S. Your journey is ready. Have a safe and pleasant drive."*).
+     - **Detailed**: Adds configured vehicle details and verified reminders.
      - **Custom**: User-defined templates with dynamic placeholder support (`{name}`, `{brand}`, `{model}`, `{variant}`, `{timeOfDay}`).
 
 2. **Verified Android Auto & Car Connection Awareness**
@@ -53,10 +50,10 @@ Designed with an automotive-inspired Material 3 interface, clean architecture, a
    - Configurable speech rate (0.5x - 2.0x), voice pitch (0.5x - 2.0x), and voice/language selection.
    - Instant phone-side audio preview with animated visualizer and stop controls.
 
-5. **Tailored Tata Nexon Dashboard**
-   - Obsidian and Nexon-cyan automotive theme (`#00E5FF` electric cyan accents with amber warnings).
+5. **Profile-Aware Automotive Dashboard**
+   - Obsidian/cyan automotive theme (`#00E5FF` electric cyan accents with amber warnings).
    - Live connection state badge with pulse indicator.
-   - Today's drive statistics placeholder (`Trips`, `Distance`, `Duration`).
+   - Truthful drive statistics with explicit empty states (`No trips yet`, `Unavailable`).
    - Quick settings access.
 
 6. **Persistent Configuration (DataStore)**
@@ -72,14 +69,14 @@ To ensure stability, maintainability, and driver safety, DriveMate is engineered
 ### What the Platform Officially Supports
 * **Connection Detection**: `androidx.car.app:app` exposes `CarConnection(context).type`, allowing phone-side apps to observe whether Android Auto projection is active.
 * **Audio Routing**: When the phone is connected via Android Auto or vehicle Bluetooth, standard Android audio output routes through the vehicle speakers via the car's sound system.
-* **Audio Ducking**: By requesting `AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK` under `USAGE_ASSISTANCE_NAVIGATION_GUIDANCE`, the car's infotainment radio/media ducks momentarily while the greeting plays.
+* **Audio Ducking**: DriveMate requests transient focus only for user-requested voice/TTS and abandons it on completion, error, cancellation, or disconnect.
 
 ### Official Google Platform Limitations
 * **Allowed App Categories**: Google strictly limits third-party Android Auto head-unit applications to approved categories: *Navigation*, *Media*, *Messaging*, *Point of Interest (POI)*, *Internet of Things (IoT)*, and *Weather*. Standalone car greeting apps cannot draw arbitrary UI screens on the car head unit without implementing an approved category template (`CarAppService`).
 * **Background Audio Restrictions**: Starting in Android 14 and Android 15, background applications cannot spontaneously claim audio focus or play sound if the app process is terminated or cached.
 * **Why DriveMate Avoids Hacks**: DriveMate **does not** use accessibility hacks, notification exploits, hidden private APIs, or root access. Instead, DriveMate provides:
   1. Responsive **Phone-Side Docking / Foreground Mode** when docked in the car.
-  2. An optional **Foreground Driving Session Service** (`DriveMateSessionService`) with a persistent notification (`DriveMate • Tata Nexon Companion`).
+  2. An optional **Foreground Driving Session Service** (`DriveMateSessionService`) with a persistent generic vehicle notification.
   3. Seamless **Connection Simulator & Preview Mode** for testing anywhere.
 
 ---
@@ -92,7 +89,7 @@ DriveMate follows Clean Architecture and MVVM with unidirectional data flow (UDF
        ┌─────────────────────────────────────────────────────────────┐
        │               Official Connection Inputs                    │
        │  • androidx.car.app.connection.CarConnection (Android Auto) │
-       │  • Bluetooth ACL Receiver (Tata Nexon Infotainment)         │
+              │  • Bluetooth ACL Receiver (supplementary audio metadata)     │
        └──────────────────────────────┬──────────────────────────────┘
                                       │
                                       ▼
@@ -161,7 +158,7 @@ app/src/main/java/com/shatrughna/drivemate/
 │   ├── components/
 │   │   └── DashboardComponents.kt  # Automotive cards, badges, and preview controls
 │   └── theme/
-│       ├── Color.kt                # Tata Nexon obsidian/cyan palette
+│       ├── Color.kt                # Obsidian/cyan automotive palette
 │       ├── Theme.kt                # Automotive dark theme
 │       └── Type.kt                 # Typography hierarchy
 └── util/
@@ -216,7 +213,7 @@ app/build/outputs/apk/debug/app-debug.apk
 ## 🧪 Testing
 
 ### 1. Automated Unit Tests
-The test suite validates greeting generation, session deduplication, and state modeling:
+The test suite covers greeting generation, passive Android Auto sessions, truthful telemetry defaults/fallbacks, GPS quality, analytics empty states, and audio ownership:
 ```bash
 ./gradlew test
 ```
@@ -225,22 +222,11 @@ The test suite validates greeting generation, session deduplication, and state m
   * Validates Short, Normal, and Detailed styles.
   * Validates Custom templates and dynamic placeholder replacements (`{name}`, `{brand}`, `{model}`, `{variant}`, `{timeOfDay}`).
   * Validates template syntax error handling and unknown token detection.
-* **`AndroidAutoReliabilityTest`** (13 Comprehensive Reliability Scenarios):
-  * **Scenario 1**: Bluetooth-only connection updates state but does NOT trigger driving sessions or speech.
-  * **Scenario 2**: Android Auto projection connecting while Bluetooth is paired triggers session and welcome greeting.
-  * **Scenario 3**: Rapid duplicate connection events are strictly deduplicated (plays exactly once).
-  * **Scenario 4**: Vehicle disconnect during greeting preparation cancels the greeting cleanly.
-  * **Scenario 5**: Vehicle disconnect mid-speech immediately stops TTS and does NOT mark the greeting played.
-  * **Scenario 6**: TTS initialization failures trigger bounded retries (max 2 retries) and do NOT mark played.
-  * **Scenario 7**: TTS playback errors (onError) do NOT mark greeting played.
-  * **Scenario 8**: TTS playback completion (onDone) marks greeting played for the current session ID.
-  * **Scenario 9**: Audio focus denial aborts speech and does NOT mark played.
-  * **Scenario 10**: Stale utterance or session IDs cannot mark active greetings played.
-  * **Scenario 11**: Rapid disconnect-reconnect generates distinct session IDs and triggers fresh greetings.
-  * **Scenario 12**: Weather API timeouts (>2s) or network errors fallback to basic greetings without blocking speech.
-  * **Scenario 13**: Single greeting per driving session guaranteed across lifecycle re-evaluations.
+* **`AndroidAutoReliabilityTest`**: Android Auto connection is passive; only an explicit/verified motion trigger starts a drive, and reconnect remains passive.
+* **`VehicleTelemetryTest`**: Fresh-state honesty, GPS speed labeling/clearing, odometer separation, and TPMS unavailability.
+* **`AudioFocusLifecycleTest`** and **`AudioInputCoordinatorTest`**: single-owner microphone/TTS transitions and release on cancellation/error.
 * **`DrivingSessionManagerTest`**:
-  * Validates connection lifecycle: `CONNECT -> Greeting Triggered`.
+  * Validates connection lifecycle: `CONNECT -> Passive`, followed by an explicit session trigger.
   * Validates deduplication: Subsequent `CONNECT` events (activity recreate, rotation, duplicate callbacks) **never** replay greetings.
   * Validates disconnect: `DISCONNECT` cleans up active session.
   * Validates reconnection: Subsequent `CONNECT` triggers greeting for the new drive.
@@ -261,7 +247,7 @@ The test suite validates greeting generation, session deduplication, and state m
      ```bash
      desktop-head-unit
      ```
-  4. Plug in your phone; DriveMate will detect `CONNECTION_TYPE_PROJECTION` and deliver the greeting.
+  4. Plug in your phone; DriveMate will detect `CONNECTION_TYPE_PROJECTION` without automatically opening the microphone or interrupting media.
 
 ---
 
@@ -271,8 +257,8 @@ The test suite validates greeting generation, session deduplication, and state m
 - [x] **Production Android Auto Host Validation**: Dual-mode host validation (`ALLOW_ALL_HOSTS_VALIDATOR` in debug for DHU; `androidx.car.app.R.array.hosts_allowlist_sample` in release).
 - [x] **Foreground Service Hardening**: Android 14/15 `foregroundServiceType` flags (`connectedDevice|location`), background start exception guards, and clean notification lifecycle teardown.
 - [x] **Single-Owner Microphone Arbitration**: `AudioInputCoordinator` state machine enforcing strict mutual exclusion between wake word engine and command recognizer, and locking microphone during TTS speech playback.
-- [x] **Dynamic Destination Search & Recent History**: Arbitrary navigation queries ("petrol pump", "airport", "Tata service"), persistent 15-item JSON history (`drivemate_recent_destinations.json`), and contextual time-of-day suggestions.
-- [x] **Personal Vehicle Profile & HSRP**: Authentic Indian High Security Registration Plate (HSRP) representation (`MH 28 BW 1624`), photo picker copying image into internal storage, and high-precision double odometer (`12,500.8 km` without truncation).
+- [x] **Dynamic Destination Search & Recent History**: Arbitrary navigation queries ("fuel", "airport", "vehicle service"), persistent 15-item JSON history (`drivemate_recent_destinations.json`), and contextual time-of-day suggestions.
+- [x] **Personal Vehicle Profile & HSRP**: Profile-provided vehicle identity and registration plate, photo picker copying image into internal storage, and high-precision double odometer without truncation.
 - [x] **Tasteful 3D Perspective UX**: Touch-interactive 3D hero vehicle card with physics spring return and ambient floating tilt, paired with driver-safe 2D templates on the car head unit.
 - [x] **New Android Auto Car Screens**: `CarDestinationSearchScreen`, `CarRecentDestinationsScreen`, `CarSuggestedDestinationsScreen`.
 
@@ -292,7 +278,7 @@ The test suite validates greeting generation, session deduplication, and state m
     📧 <a href="mailto:ambhoreshatrughna@gmail.com">ambhoreshatrughna@gmail.com</a> &nbsp;|&nbsp;
     📱 <a href="tel:+919604466334">+91 9604466334</a>
   </p>
-  <p><i>Crafted with passion for the Tata Nexon Creative+ S</i></p>
+  <p><i>Crafted for truthful, driver-safe vehicle companionship</i></p>
 </div>
 
 ---

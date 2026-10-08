@@ -150,7 +150,7 @@ fun DrivingAnalyticsScreen(
                                         color = TextPrimary
                                     )
                                     Text(
-                                        text = "${summary.totalTrips} recorded drives this month",
+                                        text = if (summary.totalTrips == 0) "No trips yet" else "${summary.totalTrips} recorded drives this month",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = TextSecondary
                                     )
@@ -173,7 +173,7 @@ fun DrivingAnalyticsScreen(
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
-                                        text = "${summary.avgEcoScore} Eco",
+                                        text = summary.avgEcoScore?.let { "$it Eco" } ?: "No score",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
                                         color = NexonEmeraldAccent
@@ -188,19 +188,19 @@ fun DrivingAnalyticsScreen(
                         ) {
                             DriveMateMetric(
                                 label = "DISTANCE",
-                                value = String.format("%.0f", summary.totalDistanceKm),
+                                value = if (summary.totalTrips == 0) "—" else String.format("%.0f", summary.totalDistanceKm),
                                 unit = "km",
                                 modifier = Modifier.weight(1f)
                             )
                             DriveMateMetric(
                                 label = "DURATION",
-                                value = String.format("%.1f", summary.totalDurationMinutes / 60.0),
+                                value = if (summary.totalTrips == 0) "—" else String.format("%.1f", summary.totalDurationMinutes / 60.0),
                                 unit = "hrs",
                                 modifier = Modifier.weight(1f)
                             )
                             DriveMateMetric(
                                 label = "AVG SPEED",
-                                value = String.format("%.0f", summary.avgSpeedKmh),
+                                value = summary.avgSpeedKmh?.let { String.format("%.0f", it) } ?: "—",
                                 unit = "km/h",
                                 modifier = Modifier.weight(1f)
                             )

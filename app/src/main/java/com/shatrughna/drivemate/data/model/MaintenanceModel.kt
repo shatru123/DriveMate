@@ -27,7 +27,7 @@ data class ServiceRecord(
     val type: ServiceType,
     val dateMillis: Long = System.currentTimeMillis(),
     val odometerKm: Double,
-    val workshopName: String = "Tata Authorized Service Center",
+    val workshopName: String = "Service provider not specified",
     val cost: Double = 0.0,
     val invoiceNumber: String = "",
     val notes: String = "",
@@ -37,9 +37,12 @@ data class ServiceRecord(
 data class ServiceSchedule(
     val intervalKm: Int = 15000,
     val intervalMonths: Int = 12,
-    val lastServiceOdometerKm: Double = 15000.0,
-    val lastServiceDateMillis: Long = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(180)
+    val lastServiceOdometerKm: Double = Double.NaN,
+    val lastServiceDateMillis: Long = 0L
 ) {
+    val isConfigured: Boolean
+        get() = lastServiceOdometerKm.isFinite() && lastServiceDateMillis > 0L
+
     val nextServiceOdometerKm: Double get() = lastServiceOdometerKm + intervalKm
 
     val nextServiceDateMillis: Long

@@ -76,7 +76,7 @@ import com.shatrughna.drivemate.ui.voice.VoiceAssistantSheet
  * Visual Hierarchy:
  * 1. Top Bar & Driver Greeting
  * 2. Active Drive Ticker (when in session)
- * 3. Hero 3D Vehicle Card (Tata Nexon Creative+ S, HSRP plate, double odometer)
+ * 3. Hero 3D Vehicle Card (profile-aware vehicle identity and odometer)
  * 4. 2x2 Quick Actions Grid (Voice, Navigate, Trip Status, Live Weather)
  * 5. Dynamic Destinations & Category Discovery
  * 6. Today's Driving Live Metrics
@@ -194,7 +194,7 @@ fun DashboardScreen(
                             letterSpacing = (-0.5).sp
                         )
                         Text(
-                            text = "Automotive Companion • ${settings.vehicleBrand} ${settings.vehicleModel}",
+                            text = "Automotive Companion • ${settings.fullVehicleName}",
                             style = MaterialTheme.typography.labelSmall,
                             color = TextMuted
                         )
@@ -232,13 +232,13 @@ fun DashboardScreen(
             ) {
                 Column {
                     Text(
-                        text = "Welcome, ${settings.driverName} 👋",
+                        text = if (settings.driverName.isBlank()) "Welcome 👋" else "Welcome, ${settings.driverName} 👋",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
                     )
                     Text(
-                        text = "Ready for your drive • Tata Nexon Creative+ S",
+                        text = if (settings.fullVehicleName == "Connected vehicle") "Vehicle profile unavailable" else "Ready for your drive • ${settings.fullVehicleName}",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )

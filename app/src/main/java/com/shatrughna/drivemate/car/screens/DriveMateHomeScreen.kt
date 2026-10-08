@@ -101,24 +101,25 @@ class DriveMateHomeScreen(carContext: CarContext) : Screen(carContext) {
 
         // 2. Real Vehicle Telemetry: Speed & Authoritative Odometer
         val speedStr = when {
-            currentTelemetry.speedAvailability == TelemetryAvailability.LIVE && currentTelemetry.speedKmh != null ->
-                "${currentTelemetry.speedKmh?.toInt()} km/h (${currentTelemetry.speedSource.displayName})"
-            currentTelemetry.speedKmh != null ->
-                "${currentTelemetry.speedKmh?.toInt()} km/h"
-            else -> "Vehicle Idle"
+            currentTelemetry.speedKmh != null && currentTelemetry.speedAvailability == TelemetryAvailability.LIVE ->
+                "${currentTelemetry.speedKmh!!.toInt()} km/h • ${currentTelemetry.speedSource.displayName}"
+            currentTelemetry.speedKmh != null && currentTelemetry.speedAvailability == TelemetryAvailability.STALE ->
+                "${currentTelemetry.speedKmh!!.toInt()} km/h • DATA STALE"
+            else -> "Speed unavailable"
         }
         val odoStr = when {
-            currentTelemetry.isAuthoritativeOdometer ->
-                "${String.format("%,.1f", currentTelemetry.vehicleOdometerKm)} km (Car Odometer)"
-            else ->
-                "${String.format("%,.1f", currentTelemetry.manualOdometerKm)} km (Calibrated)"
+            currentTelemetry.isAuthoritativeOdometer && currentTelemetry.vehicleOdometerKm != null ->
+                "${String.format("%,.1f", currentTelemetry.vehicleOdometerKm)} km • LIVE VEHICLE"
+            currentTelemetry.manualOdometerKm != null ->
+                "${String.format("%,.1f", currentTelemetry.manualOdometerKm)} km • MANUAL"
+            else -> "Odometer unavailable"
         }
         listBuilder.addItem(
             Row.Builder()
-                .setTitle("⚡ Speed & Odometer")
-                .addText("$speedStr • $odoStr")
+                .setTitle(if (currentTelemetry.androidAutoConnected) "Android Auto • Connected" else "Android Auto • Disconnected")
+                .addText("$speedStr\n$odoStr")
                 .setOnClickListener {
-                    screenManager.push(CarTripStatusScreen(carContext))
+                    screenManager.push(CarVehicleStatusScreen(carContext))
                 }
                 .build()
         )
@@ -127,7 +128,7 @@ class DriveMateHomeScreen(carContext: CarContext) : Screen(carContext) {
         listBuilder.addItem(
             Row.Builder()
                 .setTitle("📍 Search Destination")
-                .addText("Petrol pump, Tata service, Airport, Food")
+                .addText("Fuel, service, airport, food")
                 .setOnClickListener {
                     screenManager.push(CarDestinationSearchScreen(carContext))
                 }
@@ -147,13 +148,16 @@ class DriveMateHomeScreen(carContext: CarContext) : Screen(carContext) {
 
         // 5. Trip Statistics & Maintenance
         val tripMins = stats.activeTripDurationSeconds / 60
-        val tripDist = String.format("%.1f", stats.activeTripDistanceKm)
-        val remainingService = (currentSettings.nextServiceKm - currentTelemetry.effectiveOdometerKm).coerceAtLeast(0.0)
-        val serviceText = "${String.format("%,.0f", remainingService)} km to service"
+        val hasActiveDrive = stats.activeTripDurationSeconds > 0L || stats.activeTripDistanceKm > 0.05f
+        val tripDist = stats.activeTripDistanceKm.takeIf { hasActiveDrive }?.let { String.format("%.1f", it) }
+        val remainingService = currentTelemetry.effectiveOdometerKm?.takeIf { currentSettings.serviceTargetConfigured }?.let {
+            (currentSettings.nextServiceKm - it).coerceAtLeast(0.0)
+        }
+        val serviceText = remainingService?.let { "${String.format("%,.0f", it)} km to service" } ?: "Service distance unavailable"
         listBuilder.addItem(
             Row.Builder()
-                .setTitle("🚗 Current Drive: $tripDist km")
-                .addText("$tripMins min active (GPS) • $serviceText")
+                .setTitle(tripDist?.let { "Current Drive: $it km" } ?: "Current Drive")
+                .addText(if (hasActiveDrive) "$tripMins min active (GPS) • $serviceText" else serviceText)
                 .setOnClickListener {
                     screenManager.push(CarTripStatusScreen(carContext))
                 }
@@ -177,7 +181,7 @@ class DriveMateHomeScreen(carContext: CarContext) : Screen(carContext) {
         )
 
         val header = Header.Builder()
-            .setTitle("DriveMate • Tata Nexon")
+            .setTitle("DriveMate • ${currentSettings.fullVehicleName}")
             .setStartHeaderAction(Action.APP_ICON)
             .build()
 
