@@ -117,11 +117,16 @@ jobs:
           name: DriveMate ${{ steps.sign_apk.outputs.tag_name }}
           tag_name: ${{ steps.sign_apk.outputs.tag_name }}
           body: |
-            ## DriveMate ${{ github.ref_name || github.event.inputs.tag_name }}
+            # 📥 [Direct Download: ${{ steps.sign_apk.outputs.apk_path }}](https://github.com/shatru123/DriveMate/releases/download/${{ steps.sign_apk.outputs.tag_name }}/${{ steps.sign_apk.outputs.apk_path }})
 
+            > **📱 Click above to download and install DriveMate directly on your Android device.**
+
+            ---
+
+            ### ✨ Highlights
             ${{ steps.changelog.outputs.changelog_content }}
 
-            ### Verification
+            ### 🔒 Verification
             Verify release authenticity using the included `.sha256` checksum file:
             ```bash
             sha256sum -c ${{ steps.sign_apk.outputs.apk_path }}.sha256
