@@ -1,0 +1,130 @@
+name: Release Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag (e.g. v10.5.0)'
+        required: true
+        default: 'v10.5.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Publish Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK Build Tools
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run Unit Tests
+        run: ./gradlew testDebugUnitTest --no-daemon
+
+      - name: Run Android Lint
+        run: ./gradlew lintDebug --no-daemon
+
+      - name: Build Release APK
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Prepare & Sign Release APK
+        id: sign_apk
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "main" ]; then
+            TAG_NAME="${{ github.event.inputs.tag_name }}"
+          fi
+          if [ -z "$TAG_NAME" ]; then
+            TAG_NAME="v10.5.0"
+          fi
+
+          ORIGINAL_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          echo "Found APK: $ORIGINAL_APK"
+
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ]; then
+            echo "Signing APK with repository release keystore..."
+            KEYSTORE_FILE="/tmp/release.keystore"
+            echo "$KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_FILE"
+            
+            RELEASE_APK="DriveMate-${TAG_NAME}.apk"
+            # Align and sign using Android SDK apksigner
+            zipalign -v -p 4 "$ORIGINAL_APK" "/tmp/aligned.apk"
+            apksigner sign --ks "$KEYSTORE_FILE" \
+              --ks-pass "pass:$KEYSTORE_PASSWORD" \
+              --ks-key-alias "$KEY_ALIAS" \
+              --key-pass "pass:${KEY_PASSWORD:-$KEYSTORE_PASSWORD}" \
+              --out "$RELEASE_APK" "/tmp/aligned.apk"
+            
+            rm -f "$KEYSTORE_FILE" "/tmp/aligned.apk"
+          else
+            echo "No signing keystore secret configured; distributing unsigned APK."
+            RELEASE_APK="DriveMate-${TAG_NAME}-unsigned.apk"
+            cp "$ORIGINAL_APK" "$RELEASE_APK"
+          fi
+
+          echo "apk_path=$RELEASE_APK" >> "$GITHUB_OUTPUT"
+          
+          # Compute SHA-256 Checksum
+          sha256sum "$RELEASE_APK" > "${RELEASE_APK}.sha256"
+          cat "${RELEASE_APK}.sha256"
+
+      - name: Extract Changelog
+        id: changelog
+        run: |
+          CHANGELOG_FILE="fastlane/metadata/android/en-US/changelogs/10500.txt"
+          if [ -f "$CHANGELOG_FILE" ]; then
+            echo "changelog_content<<EOF" >> "$GITHUB_OUTPUT"
+            cat "$CHANGELOG_FILE" >> "$GITHUB_OUTPUT"
+            echo "EOF" >> "$GITHUB_OUTPUT"
+          else
+            echo "changelog_content=DriveMate release artifact" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: DriveMate ${{ github.ref_name || github.event.inputs.tag_name }}
+          tag_name: ${{ github.ref_name || github.event.inputs.tag_name }}
+          body: |
+            ## DriveMate ${{ github.ref_name || github.event.inputs.tag_name }}
+
+            ${{ steps.changelog.outputs.changelog_content }}
+
+            ### Verification
+            Verify release authenticity using the included `.sha256` checksum file:
+            ```bash
+            sha256sum -c ${{ steps.sign_apk.outputs.apk_path }}.sha256
+            ```
+
+            ---
+            **Created by Shatrughna Ambhore**
+          files: |
+            ${{ steps.sign_apk.outputs.apk_path }}
+            ${{ steps.sign_apk.outputs.apk_path }}.sha256
+          draft: false
+          prerelease: false

@@ -1,0 +1,8 @@
+• DriveMate V10.5 Release
+• Prepared for public distribution on GitHub Releases and F-Droid
+• Added multi-user profile authentication and vehicle data isolation
+• Multilingual Voice Assistant with English, Hindi, and Marathi support
+• Full document vault with expiry tracking
+• Vehicle, profile, and creator photo zoom and lightbox viewer
+• Dedicated About tab with developer details and system status
+• Bug fixes and performance improvements

@@ -1,0 +1,39 @@
+Categories:
+  - Navigation
+  - System
+License: MIT
+AuthorName: Shatrughna Ambhore
+AuthorEmail: ambhoreshatrughna@gmail.com
+SourceCode: https://github.com/shatru123/DriveMate
+IssueTracker: https://github.com/shatru123/DriveMate/issues
+Changelog: https://github.com/shatru123/DriveMate/releases
+
+AutoName: DriveMate
+Summary: Intelligent car companion with multilingual voice assistant & vehicle telemetry
+Description: |-
+  DriveMate is an intelligent, profile-aware car companion designed for drivers who value truthful vehicle telemetry, driver safety, and seamless voice assistance.
+
+  Key Features:
+  * Multilingual Voice Assistant (English, Hindi, Marathi, and natural code-switching)
+  * Truthful vehicle telemetry (OBD2/Car Hardware/GPS with strict honesty contracts)
+  * Multi-user account isolation with single vehicle profiles
+  * Secure on-device automotive document vault (RC, Insurance, PUC, License)
+  * Smart parking location recall and categorized expense tracking
+  * 100% on-device data storage — zero trackers, zero ads, zero proprietary analytics
+  * Adheres strictly to official Android for Cars safety guidelines
+
+RepoType: git
+Repo: https://github.com/shatru123/DriveMate.git
+
+Builds:
+  - versionName: 10.5.0
+    versionCode: 10500
+    commit: v10.5.0
+    subdir: app
+    gradle:
+      - yes
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 10.5.0
+CurrentVersionCode: 10500

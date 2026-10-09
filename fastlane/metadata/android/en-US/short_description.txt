@@ -1,0 +1,1 @@
+Intelligent car companion with multilingual voice assistant & vehicle telemetry.

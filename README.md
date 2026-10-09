@@ -2,11 +2,29 @@
 
 > **Your Personal Driving Companion** with truthful, profile-aware vehicle telemetry
 
+[![Release](https://img.shields.io/badge/Release-v10.5.0-00E5FF.svg)](https://github.com/shatru123/DriveMate/releases/latest)
+[![F-Droid](https://img.shields.io/badge/F--Droid-Ready-brightgreen.svg?logo=fdroid)](docs/F-DROID.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Android](https://img.shields.io/badge/Platform-Android_8.0+-3DDC84.svg?style=flat&logo=android)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0.21-7F52FF.svg?style=flat&logo=kotlin)](https://kotlinlang.org)
 [![Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4.svg?style=flat&logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
 [![Android Auto](https://img.shields.io/badge/Android%20for%20Cars-1.7.0-0F9D58.svg?style=flat&logo=androidauto)](https://developer.android.com/training/cars)
-[![Tests](https://img.shields.io/badge/Tests-run%20locally-lightgrey.svg)]()
+
+---
+
+## 📥 Download & Install
+
+DriveMate is distributed as free, open-source software (FLOSS).
+
+* **Direct APK Download:** [Latest GitHub Release (v10.5.0)](https://github.com/shatru123/DriveMate/releases/latest)
+* **F-Droid Package:** Submission recipe prepared in [`metadata/com.shatrughna.drivemate.yml`](metadata/com.shatrughna.drivemate.yml). See [F-Droid Documentation](docs/F-DROID.md).
+* **Privacy Policy:** 100% on-device, zero tracking. Read [docs/PRIVACY.md](docs/PRIVACY.md).
+* **Release Engineering:** Learn how builds are signed and verified in [docs/RELEASING.md](docs/RELEASING.md).
+
+```bash
+# Verify release APK authenticity
+sha256sum -c DriveMate-v10.5.0.apk.sha256
+```
 
 ---
 
@@ -258,7 +276,21 @@ The test suite covers greeting generation, passive Android Auto sessions, truthf
 - [x] **Expanded Natural Automotive Domain**: Instant answers for fuel expenses, today's cumulative driving distance, weather forecasts, parking recall, maintenance countdowns, music streaming, and navigation.
 - [x] **Language Settings & Suggestion Chips**: In-app and Android Auto voice assistant language preference (`Auto`, `English`, `हिंदी`, `मराठी`), with dynamic multilingual suggestion chips in the Voice Assistant Sheet.
 
-### Version 3.5 (Autonomous AI Companion)
+### Version 10.4 (Multi-User Authentication & Vehicle Isolation) - Released ✅
+- [x] **Multi-User Account Architecture**: Secure, on-device user account creation, login, and profile management with salt-hashed PIN storage.
+- [x] **Single Vehicle Isolation**: Strict per-user isolation of vehicle telemetry, configuration, trip logs, document vault, and expense records.
+- [x] **Document Vault**: Encrypted on-device vault for Registration Certificate (RC), Insurance, Pollution Certificate (PUC), and Driving License with expiry tracking.
+- [x] **Interactive Photo Zoom Lightbox**: Full-screen pinch/double-tap zoom viewer for vehicle photos, driver profile avatars, and creator portraits.
+- [x] **Dedicated About Screen**: System status diagnostics, architecture details, and developer credits.
+
+### Version 10.5 (GitHub Releases & F-Droid Ready) - Current Release 🚀
+- [x] **Public Distribution Toolchain**: Official release builds with APK versioning (`10.5.0` / `10500`) and release signing support.
+- [x] **CI/CD Automation**: GitHub Actions workflows for automated continuous integration (`ci.yml`) and automated release publishing with SHA-256 checksums (`release.yml`).
+- [x] **F-Droid Metadata**: Complete F-Droid package recipe (`metadata/com.shatrughna.drivemate.yml`) adhering to FLOSS and anti-feature guidelines.
+- [x] **Fastlane Store Assets**: Structured metadata and localized release changelogs in `fastlane/metadata/android/en-US/`.
+- [x] **Open-Source Compliance**: 100% FLOSS dependency audit, zero proprietary tracking/analytics SDKs, zero Google Play Services lock-in.
+
+### Future Roadmap
 - [ ] **Multi-Model LLM Integration**: On-device / cloud LLM integration (Google Gemini / Claude / OpenAI).
 - [ ] **Proactive Driving Intelligence**: Real-time traffic anomaly predictions and intelligent conversational debriefs.
 

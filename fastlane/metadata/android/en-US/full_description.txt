@@ -1,0 +1,34 @@
+DriveMate is an intelligent, profile-aware car companion designed for drivers who value truthful vehicle telemetry, driver safety, and seamless voice assistance.
+
+✨ KEY FEATURES:
+
+🚗 Multilingual Voice Assistant
+• Natural voice control in English, Hindi (हिंदी), and Marathi (मराठी)
+• Understands conversational code-switching (Hinglish and Maranglish)
+• Instant voice queries for vehicle speed, range, odometer, fuel, weather, expenses, parking, and maintenance
+• Safe audio ducking and single-owner microphone lifecycle
+
+📊 Truthful Vehicle Telemetry
+• Direct integration with Car Hardware / OBD2 / GPS sensors
+• Zero hallucinations: strict distinction between live vehicle sensors, GPS estimates, stale readings, and unavailable states
+• Live speed, fuel level, range estimation, and trip statistics
+
+👤 Multi-User Isolation & Single Vehicle Profile
+• Secure on-device user account system
+• Clean isolation of personal vehicle profiles, driving logs, documents, and settings
+• Fast switching and offline data security
+
+📁 Encrypted Automotive Document Vault
+• Keep vehicle registration (RC), insurance policy, PUC certificate, and driver license handy
+• Expiry date alerts and quick offline verification
+
+🅿️ Smart Parking Assistant & Expense Tracking
+• Automatic or one-tap parking location recall with GPS coordinates and notes
+• Comprehensive fuel, maintenance, toll, and trip expense logging with categorized breakdown
+
+🛡️ Privacy & Driver Safety First
+• 100% on-device data processing — no proprietary tracking, no analytics, no ads
+• Built strictly according to official Android for Cars safety guidelines
+• Open-source weather powered by Open-Meteo with no API keys or telemetry
+
+DriveMate is crafted for truthful, distraction-free driving companionship.
