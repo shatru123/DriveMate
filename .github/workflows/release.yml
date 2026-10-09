@@ -32,8 +32,13 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Setup Android SDK Build Tools
-        uses: android-actions/setup-android@v3
+      - name: Add Android Build Tools to PATH
+        run: |
+          if [ -d "$ANDROID_HOME/build-tools" ]; then
+            BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+            echo "$BUILD_TOOLS_DIR" >> "$GITHUB_PATH"
+            echo "Added $BUILD_TOOLS_DIR to PATH"
+          fi
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -55,13 +60,14 @@ jobs:
           KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
-          TAG_NAME="${{ github.ref_name }}"
-          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "main" ]; then
-            TAG_NAME="${{ github.event.inputs.tag_name }}"
+          TAG_NAME="${{ github.event.inputs.tag_name }}"
+          if [ -z "$TAG_NAME" ] && [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG_NAME="${{ github.ref_name }}"
           fi
-          if [ -z "$TAG_NAME" ]; then
+          if [ -z "$TAG_NAME" ] || [ "$TAG_NAME" = "main" ]; then
             TAG_NAME="v10.5.0"
           fi
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
 
           ORIGINAL_APK=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
           echo "Found APK: $ORIGINAL_APK"
@@ -108,8 +114,8 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: DriveMate ${{ github.ref_name || github.event.inputs.tag_name }}
-          tag_name: ${{ github.ref_name || github.event.inputs.tag_name }}
+          name: DriveMate ${{ steps.sign_apk.outputs.tag_name }}
+          tag_name: ${{ steps.sign_apk.outputs.tag_name }}
           body: |
             ## DriveMate ${{ github.ref_name || github.event.inputs.tag_name }}
 
